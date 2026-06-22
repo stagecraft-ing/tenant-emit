@@ -1,0 +1,10 @@
+{
+  "package": {
+    "kind": "rust-lib",
+    "name": "tenant-emit-types",
+    "path": "crates/tenant-emit-types",
+    "specRef": "000-tenant-emit-bootstrap"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "15017aef65302b7002901f6e14b59575b61813f172444aaede5a8a26dd9d8015"
+}

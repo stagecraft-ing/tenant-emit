@@ -1,0 +1,11 @@
+{
+  "package": {
+    "kind": "npm-package",
+    "name": "tenant-emit-repo",
+    "path": "",
+    "specRef": "000-tenant-emit-bootstrap",
+    "version": "0.1.0"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "d2d366009070d6e41a8d4d2ea9cbca295d0a3002ccb8012983195383c822f106"
+}

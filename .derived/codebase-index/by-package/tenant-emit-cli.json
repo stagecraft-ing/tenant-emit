@@ -1,0 +1,10 @@
+{
+  "package": {
+    "kind": "rust-bin",
+    "name": "tenant-emit-cli",
+    "path": "crates/tenant-emit-cli",
+    "specRef": "000-tenant-emit-bootstrap"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "724499ce707ce68afeb77ea62bd482c5c480d8daa34ab4826b3721bf0ff047a4"
+}

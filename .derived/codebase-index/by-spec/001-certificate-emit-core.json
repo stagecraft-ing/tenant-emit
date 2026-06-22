@@ -1,0 +1,134 @@
+{
+  "mapping": {
+    "dependsOn": [
+      "000-tenant-emit-bootstrap"
+    ],
+    "implementingPaths": [
+      {
+        "path": "NOTICE",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-core/src/certificate.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-core/src/lib.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-types/src/certificate.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-types/src/inter_stage_manifest.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-types/src/lib.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-types/src/pipeline_state.rs",
+        "source": "spec-edge"
+      }
+    ],
+    "resolvedUnits": [
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-core/src/certificate.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-core/src/certificate.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-core/src/lib.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-core/src/lib.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-types/src/certificate.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-types/src/certificate.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-types/src/inter_stage_manifest.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-types/src/inter_stage_manifest.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-types/src/lib.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-types/src/lib.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-types/src/pipeline_state.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-types/src/pipeline_state.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "NOTICE"
+          }
+        ],
+        "ownership": false,
+        "sourceField": "references",
+        "unit": {
+          "kind": "file",
+          "path": "NOTICE"
+        }
+      }
+    ],
+    "specId": "001-certificate-emit-core",
+    "specStatus": "draft"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "f7da83e43a0d0a2ba9e0bdb9bc3f7bd468143180ce2bf7926a14e55c184164d6"
+}

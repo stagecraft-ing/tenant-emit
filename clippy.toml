@@ -1,0 +1,20 @@
+# Spec 220 FR-007 / spec 218 FR-002 (read, never recompute). The emit CLI may
+# call the reader-side `spec_spine_core::attest::attestation_hash` (a pure
+# payload hash over a SUPPLIED attestation), but must NEVER call the
+# corpus-recompute / attestation-emit functions. clippy resolves these by path,
+# so this is a compile-time fact, not a review convention. It is the
+# symbol-level layer of the FR-002 boundary mirrored from OAP; the crate-level
+# layer is the cargo-deny ban on `spec-spine-cli` (deny.toml).
+#
+# Workspace-wide on purpose: no tenant-emit crate should ever recompute a
+# corpus. The warn-by-default `clippy::disallowed_methods` lint is promoted to a
+# hard error by the `-D warnings` clippy gate in CI, so this needs no separate
+# CI step. `attest`/`verify_recompute` live in the `attest` module;
+# `attest_json`/`verify_attestation_json` are crate-root wrappers. The reader
+# seam (`attestation_hash`) is deliberately permitted.
+disallowed-methods = [
+    { path = "spec_spine_core::attest::attest", reason = "spec 220 FR-007 / 218 FR-002: read the attestation hash, never recompute the corpus" },
+    { path = "spec_spine_core::attest::verify_recompute", reason = "spec 220 FR-007 / 218 FR-002: corpus recompute belongs to spec-spine verify-attestation, not the emitter" },
+    { path = "spec_spine_core::attest_json", reason = "spec 220 FR-007 / 218 FR-002: read, never emit an attestation" },
+    { path = "spec_spine_core::verify_attestation_json", reason = "spec 220 FR-007 / 218 FR-002: corpus recompute belongs to spec-spine verify-attestation, not the emitter" },
+]

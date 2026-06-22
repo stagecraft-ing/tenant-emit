@@ -1,0 +1,63 @@
+{
+  "record": {
+    "authors": [
+      "tenant-emit"
+    ],
+    "created": "2026-06-22",
+    "dependsOn": [
+      "000-tenant-emit-bootstrap"
+    ],
+    "establishes": [
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-types/src/certificate.rs"
+      },
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-types/src/inter_stage_manifest.rs"
+      },
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-types/src/pipeline_state.rs"
+      },
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-types/src/lib.rs"
+      },
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-core/src/certificate.rs"
+      },
+      {
+        "kind": "file",
+        "path": "crates/tenant-emit-core/src/lib.rs"
+      }
+    ],
+    "id": "001-certificate-emit-core",
+    "implementation": "complete",
+    "kind": "tooling",
+    "references": [
+      {
+        "role": "context",
+        "unit": {
+          "kind": "file",
+          "path": "NOTICE"
+        }
+      }
+    ],
+    "risk": "medium",
+    "sectionHeadings": [
+      "001: Certificate emit core",
+      "1. Purpose",
+      "2. Territory",
+      "3. Behavior",
+      "4. Out of scope"
+    ],
+    "specPath": "specs/001-certificate-emit-core/spec.md",
+    "status": "draft",
+    "summary": "The certificate emit engine, extracted from OAP's build_certificate.rs + governance_certificate.rs (the emit path) and kept in behavior parity. It reconstructs a signed governance-certificate.json from a finished `.factory/runs/<run-id>/<stage-id>/<artifacts>` directory: it scans each stage directory, computes SHA-256 over every file, lifts the frozen Build Spec hash, attaches an attributable signer, resolves an Ed25519 signing key (operator env-var or ephemeral fallback), computes the content-binding hash and the Ed25519 signature, and persists the certificate. It optionally binds the tenant's own corpus attestation by hash (read, never recompute). The emitted certificate carries the cert DTOs at `certificate_version` 1.5.0 with the additive corpusBinding field, so it round-trips offline under tenant-tail verify-certificate.\n",
+    "title": "Certificate emit core (builder, signing, run-dir scan, corpus binding)"
+  },
+  "shardHash": "eae169b33820e698584d9e1aea28d4107d1806b66ca0090c5521284e9fcd02b0",
+  "specVersion": "1.1.0"
+}

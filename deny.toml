@@ -1,0 +1,62 @@
+# cargo-deny policy bundle for tenant-emit.
+#
+# Authoring rules:
+#   - This file is human-edited TOML; cargo-deny is the only consumer.
+#   - The load-bearing entry is the [bans].deny on `spec-spine-cli`: the
+#     crate-level half of the spec 220 FR-007 / spec 218 FR-002 read-never-
+#     recompute boundary (the symbol-level half is clippy.toml).
+
+[advisories]
+db-urls = ["https://github.com/RustSec/advisory-db"]
+yanked = "warn"
+# No ignored advisories: tenant-emit's dependency tree is small (serde, sha2,
+# base64, ed25519-dalek, chrono, clap, getrandom, thiserror, spec-spine-core /
+# spec-spine-types and their leaf deps). Add entries here only with a named
+# chain and an upstream blocker.
+ignore = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path-based internal workspace deps are version-less by convention; exempt
+# path deps only (crates.io `*` versions still error).
+allow-wildcard-paths = true
+deny = [
+    # Spec 220 FR-007 / spec 218 FR-002 (read, never recompute): the emit CLI
+    # depends on spec-spine-core (for the reader-side attestation_hash) and
+    # spec-spine-types (for CorpusAttestation deserialisation) but MUST NOT
+    # depend on the spec-spine CLI binary crate, which carries the full
+    # corpus-compile / attestation-emit surface. The symbol-level layer is
+    # clippy.toml's disallowed-methods ban on attest/verify_recompute.
+    { name = "spec-spine-cli", reason = "spec 220 FR-007 / 218 FR-002: read the attestation hash, never depend on the emit CLI" },
+]
+skip = []
+
+[licenses]
+# cargo-deny v0.16+ denies anything not in `allow`. The permissive set the
+# tenant-emit dependency tree draws from; GPL/AGPL/LGPL are deliberately omitted.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Zlib",
+    "MPL-2.0",
+]
+confidence-threshold = 0.93
+
+[licenses.private]
+# First-party workspace crates are Apache-2.0 (per NOTICE); exempt the
+# unpublished workspace members from third-party license checks regardless.
+ignore = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "warn"
+allow-git = []

@@ -1,0 +1,10 @@
+{
+  "package": {
+    "kind": "rust-lib",
+    "name": "tenant-emit-core",
+    "path": "crates/tenant-emit-core",
+    "specRef": "000-tenant-emit-bootstrap"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "da60411f24082326b7d3c5076b227f3db1ef8bc219ec47755ec99533b777fcda"
+}

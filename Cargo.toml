@@ -1,0 +1,61 @@
+# tenant-emit: workspace root.
+#
+# An emit-only toolkit that produces a factory's run-side governance certificate
+# (the post-hoc build-certificate path), signed by an attributable tenant signer,
+# with no pipeline orchestration. The emit-side counterpart of tenant-tail (which
+# re-checks the same paperwork). Mirrors spec-spine's three-crate shape
+# (types/core/cli); the CLI binary is `tenant-emit`, its verb `build-certificate`.
+#
+# Governed by OAP spec 220-tenant-emit-governance-certificate (the decision to
+# vend) and by this repo's OWN specs/ corpus (compiled by the pinned spec-spine
+# library, the dogfooding pattern). The verify/emit boundary is load-bearing
+# (spec 220 AC-6, spec 219 verify-only-by-construction): tenant-emit never
+# verifies, tenant-tail never emits; the two stay distinct distributables.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/tenant-emit-types",
+    "crates/tenant-emit-core",
+    "crates/tenant-emit-cli",
+]
+
+# Shared metadata inherited by member crates via `field.workspace = true`.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/bartekus/tenant-emit"
+homepage = "https://github.com/bartekus/tenant-emit"
+authors = ["The tenant-emit Authors"]
+keywords = ["governance", "certificate", "emit", "provenance", "agents"]
+categories = ["development-tools", "command-line-utilities"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+base64 = "0.22"
+ed25519-dalek = "2"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+getrandom = "0.3"
+thiserror = "2"
+# Spec 220 FR-007 corpus read-path: the emitter reads a spec-spine
+# CorpusAttestation and hashes it via the public reader seam
+# `spec_spine_core::attest::attestation_hash`. default-features=false drops the
+# tree-sitter symbol-resolution tree (unused by the reader seam) and avoids a
+# `links = "tree-sitter"` version clash. Read, never recompute: the emit-side
+# attestation-emit / corpus-recompute functions are banned (clippy.toml +
+# deny.toml), mirroring OAP's spec 218 FR-002 guard.
+spec-spine-core = { version = "0.8.0", default-features = false }
+spec-spine-types = "0.8.0"
+# Internal crates (path + version so the published surface is not path-only).
+tenant-emit-types = { version = "0.1.0", path = "crates/tenant-emit-types" }
+tenant-emit-core = { version = "0.1.0", path = "crates/tenant-emit-core" }
+
+# The emit core is crypto + serde only; no unsafe is required, and the public
+# boundary is FFI-friendly without it (mirrors spec-spine / tenant-tail).
+[workspace.lints.rust]
+unsafe_code = "forbid"
