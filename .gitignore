@@ -16,7 +16,7 @@ node_modules/
 # copy and local build/test residue.
 /py/dist/
 /py/LICENSE
-/py/src/tenant_tail.egg-info/
+/py/src/tenant_emit.egg-info/
 __pycache__/
 
 # NOTE: .derived/ (compiler/indexer output) is intentionally NOT ignored; it is
@@ -25,6 +25,10 @@ __pycache__/
 # The one exception: build-meta.json carries a wall-clock `builtAt` (the sole
 # non-deterministic artifact), so it would churn on every compile; ignore it.
 .derived/**/build-meta.json
+# `spec-spine attest` output is a per-run governance ledger artifact (a tenant
+# produces it in CI and feeds it to the emitter via --corpus-attestation); it is
+# not part of this repo's committed registry/index, so it is never committed.
+.derived/attestation/
 
 # OS / editor cruft
 .DS_Store

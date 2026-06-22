@@ -1,0 +1,60 @@
+{
+  "record": {
+    "authors": [
+      "tenant-emit"
+    ],
+    "created": "2026-06-22",
+    "establishes": [
+      {
+        "kind": "file",
+        "path": "Cargo.toml"
+      },
+      {
+        "kind": "directory",
+        "path": "crates/tenant-emit-types"
+      },
+      {
+        "kind": "directory",
+        "path": "crates/tenant-emit-core"
+      },
+      {
+        "kind": "directory",
+        "path": "crates/tenant-emit-cli"
+      },
+      {
+        "kind": "directory",
+        "path": "npm"
+      },
+      {
+        "kind": "directory",
+        "path": "py"
+      }
+    ],
+    "id": "000-tenant-emit-bootstrap",
+    "implementation": "pending",
+    "kind": "tooling",
+    "references": [
+      {
+        "role": "context",
+        "unit": {
+          "kind": "file",
+          "path": "README.md"
+        }
+      }
+    ],
+    "risk": "low",
+    "sectionHeadings": [
+      "000: tenant-emit bootstrap",
+      "1. Purpose",
+      "2. Territory",
+      "3. Behavior",
+      "4. Out of scope"
+    ],
+    "specPath": "specs/000-tenant-emit-bootstrap/spec.md",
+    "status": "draft",
+    "summary": "Bootstrap spec for the tenant-emit repository: an emit-only toolkit that produces a factory's run-side governance certificate (the post-hoc build-certificate path), signed by an attributable tenant signer, with no pipeline orchestration. It is the emit-side counterpart of tenant-tail, which verifies the same paperwork. This spec establishes the workspace skeleton (a three-crate Cargo workspace mirroring spec-spine, plus the npm + PyPI binary-distribution wrappers) and seeds this repo's own spec corpus, governed by the pinned spec-spine library. The emit core and the verb that exposes it are claimed by subsequent specs as the extraction lands; see OAP spec 220-tenant-emit-governance-certificate for the decision to vend and the extraction map.\n",
+    "title": "tenant-emit bootstrap (emit-only toolkit skeleton)"
+  },
+  "shardHash": "9f0af1fdd360ebafb2cf8a179b1cf0428124219f20c9c7d1aa9888910c721270",
+  "specVersion": "1.1.0"
+}

@@ -1,0 +1,279 @@
+{
+  "mapping": {
+    "dependsOn": [
+      "000-tenant-emit-bootstrap",
+      "001-certificate-emit-core"
+    ],
+    "implementingPaths": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "source": "spec-edge"
+      },
+      {
+        "path": ".github/workflows/determinism.yml",
+        "source": "spec-edge"
+      },
+      {
+        "path": ".github/workflows/release.yml",
+        "source": "spec-edge"
+      },
+      {
+        "path": "clippy.toml",
+        "source": "spec-edge"
+      },
+      {
+        "path": "crates/tenant-emit-cli/src/main.rs",
+        "source": "spec-edge"
+      },
+      {
+        "path": "deny.toml",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm",
+        "source": "manifest-metadata"
+      },
+      {
+        "path": "npm/README.md",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/bin/tenant-emit.js",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/lib/platform.js",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/package.json",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/scripts/generate-platform-packages.js",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/scripts/smoke-test.sh",
+        "source": "spec-edge"
+      },
+      {
+        "path": "npm/test/platform.test.js",
+        "source": "spec-edge"
+      },
+      {
+        "path": "py/README.md",
+        "source": "spec-edge"
+      },
+      {
+        "path": "py/scripts/generate_wheels.py",
+        "source": "spec-edge"
+      },
+      {
+        "path": "py/scripts/smoke_test.sh",
+        "source": "comment-header"
+      }
+    ],
+    "resolvedUnits": [
+      {
+        "locations": [
+          {
+            "file": ".github/workflows/ci.yml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": ".github/workflows/ci.yml"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": ".github/workflows/determinism.yml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": ".github/workflows/determinism.yml"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": ".github/workflows/release.yml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": ".github/workflows/release.yml"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "clippy.toml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "clippy.toml"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "crates/tenant-emit-cli/src/main.rs"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "crates/tenant-emit-cli/src/main.rs"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "deny.toml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "deny.toml"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/bin/tenant-emit.js"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/bin/tenant-emit.js"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/lib/platform.js"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/lib/platform.js"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/package.json"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/package.json"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/scripts/generate-platform-packages.js"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/scripts/generate-platform-packages.js"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/scripts/smoke-test.sh"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/scripts/smoke-test.sh"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/test/platform.test.js"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "npm/test/platform.test.js"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "py/scripts/generate_wheels.py"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": "py/scripts/generate_wheels.py"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "npm/README.md"
+          }
+        ],
+        "ownership": false,
+        "sourceField": "references",
+        "unit": {
+          "kind": "file",
+          "path": "npm/README.md"
+        }
+      },
+      {
+        "locations": [
+          {
+            "file": "py/README.md"
+          }
+        ],
+        "ownership": false,
+        "sourceField": "references",
+        "unit": {
+          "kind": "file",
+          "path": "py/README.md"
+        }
+      }
+    ],
+    "specId": "002-distribution",
+    "specStatus": "draft"
+  },
+  "schemaVersion": "1.1.0",
+  "shardHash": "6f427d45fb84f81446218b4712594d7ddb30354b5729d719f51d7dd62ee1a584"
+}

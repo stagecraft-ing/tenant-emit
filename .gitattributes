@@ -65,9 +65,9 @@ Dockerfile* text eol=lf
 # The committed derived artifacts (spec-spine 0.5.0 shards them into per-spec /
 # per-package JSON files under .derived/) each carry a content hash, so two
 # branches that both regenerated them conflict textually. The
-# `tenant-tail-derived-regen` driver regenerates them from the merged tree (via
+# `tenant-emit-derived-regen` driver regenerates them from the merged tree (via
 # the pinned spec-spine governing binary) instead of leaving conflict markers.
 # Opt-in: register the driver per-clone with `./.githooks/enable-merge-driver.sh`.
 # If unregistered, git falls back to the default text merge; no behavior change.
 # build-meta.json is gitignored (never committed), so the glob never touches it.
-.derived/**/*.json merge=tenant-tail-derived-regen
+.derived/**/*.json merge=tenant-emit-derived-regen

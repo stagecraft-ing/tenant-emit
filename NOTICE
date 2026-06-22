@@ -1,0 +1,57 @@
+tenant-emit
+Copyright 2026 Bartek Kus
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Relicensed emit-only source (authorized)
+--------------------------------------------------------------------------------
+
+The certificate emit core and its carrier types were extracted from the
+Open Agentic Platform (OAP), where they carry SPDX headers reading
+`AGPL-3.0-or-later`. Relicensing this extracted, emit-only source to Apache-2.0
+is the prerogative of the sole copyright holder (Bartek Kus) and is an explicit,
+authorized act (OAP spec 220-tenant-emit-governance-certificate; the tenant-emit
+handoff). The extraction is emit-only by construction: the verifier (the
+certificate signature re-check, the stage-artifact re-derivation, the platform-
+seal adjudication, and the corpus-binding verify) is excluded and never ported.
+That half is vended separately as tenant-tail (spec 219); the verify/emit
+boundary is load-bearing (spec 220 AC-6, spec 219 verify-only-by-construction),
+so the two tools stay distinct distributables.
+
+Extraction map (OAP source -> tenant-emit destination):
+
+  crates/factory-engine/src/bin/build_certificate.rs
+      -> crates/tenant-emit-cli/src/main.rs
+         (the `build-certificate` verb, restructured as a subcommand of the
+          `tenant-emit` binary; the spec 220 FR-003 --require-operator-key flag
+          and the FR-007 corpus read-path are carried verbatim)
+
+  crates/factory-engine/src/governance_certificate.rs
+      -> crates/tenant-emit-types/src/certificate.rs   (the cert DTOs)
+      -> crates/tenant-emit-core/src/certificate.rs    (the emit engine:
+         CertificateBuilder, signing-key resolution, run-dir scan, hash +
+         signature, persistence; the verify path is stripped). The lone
+         spec-spine seam `validate_spec_id_resolution` is a no-op on the emit
+         path (a tenant certificate carries no spec_id) and links no spec-spine
+         registry reader.
+
+  crates/factory-engine/src/inter_stage_manifest.rs
+      -> crates/tenant-emit-types/src/inter_stage_manifest.rs
+         (carrier types only; key-minting / signing / verify stripped -- the
+          post-hoc emitter never produces a manifest chain)
+
+  crates/factory-engine/src/pipeline_state.rs
+      -> crates/tenant-emit-types/src/pipeline_state.rs
+         (trimmed to the minimal slice the post-hoc emitter reads:
+          pipeline_id, adapter, build_spec_hash, phase)
+
+The corpus read-path (spec 220 FR-007) reads a spec-spine CorpusAttestation and
+hashes it through the public reader seam `spec_spine_core::attest::attestation_hash`.
+Read, never recompute (spec 218 FR-002): the attestation-emit / corpus-recompute
+surface is banned at the symbol level (clippy.toml disallowed-methods) and the
+crate level (cargo-deny ban on `spec-spine-cli`), mirroring OAP's guard.
+
+Per the relicense, OAP's per-file AGPL SPDX header lines are NOT carried into the
+ported files; matching spec-spine's convention, the ported files carry no
+per-file SPDX header.

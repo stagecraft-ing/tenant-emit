@@ -1,0 +1,36 @@
+[package]
+name = "tenant-emit-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "tenant-emit: the emit-only CLI (build-certificate)."
+
+[[bin]]
+name = "tenant-emit"
+path = "src/main.rs"
+
+[dependencies]
+tenant-emit-core.workspace = true
+tenant-emit-types.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+# Spec 220 FR-007: the corpus read-path. Reads a CorpusAttestation and hashes it
+# via the public reader seam `spec_spine_core::attest::attestation_hash`. The
+# attestation-emit / corpus-recompute surface is banned workspace-wide
+# (clippy.toml) and the emit CLI crate (spec-spine-cli) is banned as a dependency
+# (deny.toml): read, never recompute (spec 218 FR-002, mirrored here).
+spec-spine-core.workspace = true
+spec-spine-types.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
+
+[package.metadata.tenant-emit]
+spec = "000-tenant-emit-bootstrap"
