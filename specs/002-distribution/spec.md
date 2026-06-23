@@ -36,6 +36,7 @@ establishes:
   - { kind: file, path: ".github/workflows/release.yml" }
   - { kind: file, path: ".github/workflows/ci.yml" }
   - { kind: file, path: ".github/workflows/determinism.yml" }
+  - { kind: file, path: ".github/workflows/ai-pr-review.yml" }
   - { kind: file, path: "py/scripts/generate_wheels.py" }
 references:
   - { unit: { kind: file, path: "npm/README.md" }, role: context }
@@ -71,7 +72,10 @@ the release pipeline.
   faithful mirror of spec-spine's `npm/`.
 - `py/`: the parallel PyPI channel (wheels + sdist refusal), mirroring spec-spine.
 - `.github/workflows/`: CI (build/test/clippy/fmt + spec-spine self-governance +
-  determinism), the determinism golden, and the tag-gated release pipeline.
+  determinism), the determinism golden, the tag-gated release pipeline, and the
+  AI PR review (`ai-pr-review.yml`), a reusable workflow ci.yml dispatches into
+  `ci-gate` so a failed or absent review blocks merge (green ci-gate => actually
+  reviewed or visibly skipped).
 
 ## 3. Behavior
 
@@ -88,6 +92,12 @@ the release pipeline.
 - CI MUST run clippy with `-D warnings` so the read-never-recompute clippy.toml
   ban is enforced as a hard error, and MUST run the spec-spine dogfood gate
   (compile / index check / lint / couple) over this repo's own corpus.
+- The AI PR review MUST classify a Claude CLI failure rather than fail blindly:
+  an unset `CLAUDE_CODE_OAUTH_TOKEN` or an auth/permission error hard-fails (a
+  broken token must be fixed, not masked, preserving the anti-silent-green
+  guard), while any other API failure (overloaded, rate-limit, 5xx, timeout,
+  network) passes `ci-gate` with a loud, visible PR notice so a third-party
+  Anthropic incident does not block merges. The pass is never silent.
 - The cross-tool round-trip is the acceptance contract: a certificate emitted by
   `build-certificate` verifies clean under `tenant-tail verify-certificate`
   (including `--corpus-attestation`), and tampering any artifact or the

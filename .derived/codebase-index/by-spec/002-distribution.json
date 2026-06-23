@@ -6,6 +6,10 @@
     ],
     "implementingPaths": [
       {
+        "path": ".github/workflows/ai-pr-review.yml",
+        "source": "spec-edge"
+      },
+      {
         "path": ".github/workflows/ci.yml",
         "source": "spec-edge"
       },
@@ -75,6 +79,19 @@
       }
     ],
     "resolvedUnits": [
+      {
+        "locations": [
+          {
+            "file": ".github/workflows/ai-pr-review.yml"
+          }
+        ],
+        "ownership": true,
+        "sourceField": "establishes",
+        "unit": {
+          "kind": "file",
+          "path": ".github/workflows/ai-pr-review.yml"
+        }
+      },
       {
         "locations": [
           {
@@ -275,5 +292,5 @@
     "specStatus": "draft"
   },
   "schemaVersion": "1.1.0",
-  "shardHash": "6f427d45fb84f81446218b4712594d7ddb30354b5729d719f51d7dd62ee1a584"
+  "shardHash": "f374dada567e8333d8f8f13fb878d7b9ab7765a10f6e6b4a7593a3c345860908"
 }
