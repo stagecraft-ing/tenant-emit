@@ -1,6 +1,6 @@
 {
   "name": "tenant-emit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The tenant-emit CLI: an emit-only toolkit that produces a factory's run-side governance certificate (build-certificate) with no trust handed to the producer beyond the operator key it signs with. Ships the prebuilt binary; no Rust toolchain required.",
   "keywords": [
     "governance",
@@ -42,11 +42,11 @@
     "smoke": "scripts/smoke-test.sh"
   },
   "optionalDependencies": {
-    "@tenant-emit/cli-darwin-arm64": "0.1.0",
-    "@tenant-emit/cli-darwin-x64": "0.1.0",
-    "@tenant-emit/cli-linux-x64": "0.1.0",
-    "@tenant-emit/cli-linux-arm64": "0.1.0",
-    "@tenant-emit/cli-win32-x64": "0.1.0"
+    "@tenant-emit/cli-darwin-arm64": "0.2.0",
+    "@tenant-emit/cli-darwin-x64": "0.2.0",
+    "@tenant-emit/cli-linux-x64": "0.2.0",
+    "@tenant-emit/cli-linux-arm64": "0.2.0",
+    "@tenant-emit/cli-win32-x64": "0.2.0"
   },
   "tenant-emit": {
     "spec": "002-distribution"
