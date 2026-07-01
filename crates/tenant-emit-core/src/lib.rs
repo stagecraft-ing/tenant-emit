@@ -31,7 +31,8 @@ pub use tenant_emit_types::{
     ComplianceMapping, ComplianceRecord, ConsumedOverride, CorpusBinding, FactoryPhase,
     FactoryPipelineState, GateResultRecord, GovernanceCertificate, IntentRecord,
     InterStageChainRecord, InterStageManifest, ManifestSigner, PlatformCountersign,
-    ProofChainSummary, RunKeyChain, SandboxExecutionRecord, SandboxResourcePeak, Signer,
-    SignerError, SigningAttestation, SigningAttestationKind, StageKeyRecord, StageOutcome,
-    StageRecord, VerificationOutcome, VerificationRecord,
+    ProofChainSummary, RunKeyChain, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SandboxExecutionRecord,
+    SandboxResourcePeak, SbomArtifactBinding, Signer, SignerError, SigningAttestation,
+    SigningAttestationKind, StageKeyRecord, StageOutcome, StageRecord, VerificationOutcome,
+    VerificationRecord,
 };

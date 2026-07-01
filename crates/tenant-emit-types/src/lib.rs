@@ -22,9 +22,9 @@ pub use certificate::{
     ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus, ChainIntegrity,
     ComplianceMapping, ComplianceRecord, ConsumedOverride, CorpusBinding, GateResultRecord,
     GovernanceCertificate, IntentRecord, InterStageChainRecord, PlatformCountersign,
-    ProofChainSummary, SandboxExecutionRecord, SandboxResourcePeak, Signer, SignerError,
-    SigningAttestation, SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome,
-    VerificationRecord,
+    ProofChainSummary, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SandboxExecutionRecord,
+    SandboxResourcePeak, SbomArtifactBinding, Signer, SignerError, SigningAttestation,
+    SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome, VerificationRecord,
 };
 pub use inter_stage_manifest::{InterStageManifest, ManifestSigner, RunKeyChain, StageKeyRecord};
 pub use pipeline_state::{FactoryPhase, FactoryPipelineState};

@@ -23,8 +23,8 @@ use std::path::Path;
 use tenant_emit_types::certificate::{
     ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus, ChainIntegrity,
     ComplianceRecord, ConsumedOverride, CorpusBinding, GovernanceCertificate, IntentRecord,
-    InterStageChainRecord, ProofChainSummary, Signer, SigningAttestation, SigningAttestationKind,
-    StageOutcome, StageRecord, VerificationOutcome, VerificationRecord,
+    InterStageChainRecord, ProofChainSummary, SbomArtifactBinding, Signer, SigningAttestation,
+    SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome, VerificationRecord,
 };
 use tenant_emit_types::pipeline_state::FactoryPipelineState;
 
@@ -64,6 +64,7 @@ pub struct CertificateBuilder {
     intent_capsule_hash: Option<String>,
     consumed_overrides: Vec<ConsumedOverride>,
     corpus_binding: Option<CorpusBinding>,
+    sbom_artifact_binding: Option<SbomArtifactBinding>,
 }
 
 impl CertificateBuilder {
@@ -96,6 +97,7 @@ impl CertificateBuilder {
             intent_capsule_hash: None,
             consumed_overrides: Vec::new(),
             corpus_binding: None,
+            sbom_artifact_binding: None,
         }
     }
 
@@ -193,6 +195,24 @@ impl CertificateBuilder {
         self
     }
 
+    /// Spec 203 FR-003: bind the produced app's BOM + audit artifact content
+    /// hashes and the BOM tool version into the certificate (inside hash +
+    /// signature). Both hashes are SUPPLIED by the emission path; the builder
+    /// never regenerates the BOM (read, never recompute).
+    pub fn sbom_artifact_binding(
+        mut self,
+        bom_hash: impl Into<String>,
+        audit_hash: impl Into<String>,
+        bom_tool_version: impl Into<String>,
+    ) -> Self {
+        self.sbom_artifact_binding = Some(SbomArtifactBinding {
+            bom_hash: bom_hash.into(),
+            audit_hash: audit_hash.into(),
+            bom_tool_version: bom_tool_version.into(),
+        });
+        self
+    }
+
     /// Fallible build path for tenant emission (spec 168 §FR-007).
     ///
     /// Returns [`CertificateBuildError::MissingSigner`] when no
@@ -244,6 +264,7 @@ impl CertificateBuilder {
             intent_capsule_hash: self.intent_capsule_hash,
             consumed_overrides: self.consumed_overrides,
             corpus_binding: self.corpus_binding,
+            sbom_artifact_binding: self.sbom_artifact_binding,
             certificate_hash: String::new(),
             signing_public_key: public_key_b64,
             cert_signature: String::new(),

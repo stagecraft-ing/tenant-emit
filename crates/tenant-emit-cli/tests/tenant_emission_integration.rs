@@ -253,3 +253,65 @@ fn unbound_when_no_attestation_supplied() {
         "no attestation supplied -> unbound (named, not a failure)"
     );
 }
+
+/// A minimal CycloneDX BOM whose `metadata.tools.components[0]` names the
+/// generator, mirroring the shape `@cyclonedx/cyclonedx-npm` emits.
+fn sample_bom() -> serde_json::Value {
+    serde_json::json!({
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "metadata": {
+            "tools": {
+                "components": [
+                    { "type": "application", "name": "cyclonedx-npm", "version": "1.19.0" }
+                ]
+            }
+        },
+        "components": []
+    })
+}
+
+#[test]
+fn ac9_sbom_binding_matches_content_hash_and_tool_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+
+    // Produced-app root with the BOM + audit artifact, exactly as spec 203
+    // FR-001/FR-002 would have written them.
+    let bom_bytes = serde_json::to_vec_pretty(&sample_bom()).unwrap();
+    write(&dir.path().join(".factory/sbom.cdx.json"), &bom_bytes);
+    write(
+        &dir.path().join(".factory/audit.json"),
+        b"{\"status\":\"absent\",\"reason\":\"no scanner available\"}\n",
+    );
+
+    let mut flags: Vec<&str> = SIGNER_FLAGS.to_vec();
+    let sbom_dir_str = dir.path().to_string_lossy().into_owned();
+    flags.push("--sbom-dir");
+    flags.push(&sbom_dir_str);
+    flags.push("--require-operator-key");
+    assert_eq!(emit(&run, &flags, true), 0);
+
+    let cert = read_cert(&run);
+    let binding = cert
+        .sbom_artifact_binding
+        .as_ref()
+        .expect("sbom artifact binding present");
+    assert!(!binding.bom_hash.is_empty());
+    assert!(!binding.audit_hash.is_empty());
+    assert_eq!(binding.bom_tool_version, "1.19.0");
+    // The binding is inside the cert hash + signature.
+    assert_eq!(cert.certificate_hash, compute_certificate_hash(&cert));
+}
+
+#[test]
+fn unbound_when_no_sbom_dir_supplied() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    assert_eq!(emit(&run, SIGNER_FLAGS, true), 0);
+    let cert = read_cert(&run);
+    assert!(
+        cert.sbom_artifact_binding.is_none(),
+        "no --sbom-dir supplied -> unbound (named, not a failure)"
+    );
+}

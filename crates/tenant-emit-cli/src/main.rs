@@ -33,10 +33,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use tenant_emit_core::{
     CertificateBuildError, CertificateBuilder, ChainIntegrity, CorpusBinding, FactoryPipelineState,
-    GovernanceCertificate, IntentRecord, OAP_STAGE_IDS, ProofChainSummary, Signer,
-    SigningAttestationKind, VerificationOutcome, VerificationRecord,
-    generate_certificate_with_stage_ids, persist_certificate, sha256_file,
-    validate_spec_id_resolution, write_validation_warnings,
+    GovernanceCertificate, IntentRecord, OAP_STAGE_IDS, ProofChainSummary, SBOM_AUDIT_RELPATH,
+    SBOM_BOM_RELPATH, SbomArtifactBinding, Signer, SigningAttestationKind, VerificationOutcome,
+    VerificationRecord, generate_certificate_with_stage_ids, persist_certificate, sha256_bytes,
+    sha256_file, validate_spec_id_resolution, write_validation_warnings,
 };
 
 #[derive(Parser)]
@@ -129,6 +129,16 @@ struct BuildCertificateArgs {
     /// (signer) build path.
     #[arg(long)]
     corpus_attestation: Option<PathBuf>,
+
+    /// Spec 203 FR-003: produced-app root whose `.factory/sbom.cdx.json` and
+    /// `.factory/audit.json` are bound into the certificate by content hash
+    /// (read, never recompute). Falls back to the OAP_SBOM_DIR env var.
+    /// Applied on the tenant (signer) build path. The BOM tool version is
+    /// read from the BOM's own `metadata.tools`. When unset (or a file is
+    /// unreadable) the cert is emitted unbound, exactly like the corpus
+    /// binding.
+    #[arg(long)]
+    sbom_dir: Option<PathBuf>,
 }
 
 fn main() -> ExitCode {
@@ -205,8 +215,16 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
     }
 
     let corpus_binding = resolve_corpus_binding(&cli);
+    let sbom_binding = resolve_sbom_binding(&cli);
 
-    let cert = match build_certificate(&cli, &state, &requirements_hash, signer, corpus_binding) {
+    let cert = match build_certificate(
+        &cli,
+        &state,
+        &requirements_hash,
+        signer,
+        corpus_binding,
+        sbom_binding,
+    ) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("error: {e}");
@@ -324,6 +342,80 @@ fn resolve_corpus_binding(cli: &BuildCertificateArgs) -> Option<CorpusBinding> {
     }
 }
 
+/// Env var carrying the produced-app root whose `.factory/sbom.cdx.json` and
+/// `.factory/audit.json` are bound into the certificate (spec 203 FR-003).
+/// Alternative to `--sbom-dir`.
+const ENV_SBOM_DIR: &str = "OAP_SBOM_DIR";
+
+/// Spec 203 FR-003: resolve the SBOM artifact binding from `--sbom-dir` or the
+/// `OAP_SBOM_DIR` env var. Read, never recompute: the produced BOM and audit
+/// artifacts are hashed as bytes; the emitter never regenerates the BOM. The
+/// BOM tool version is read from the BOM's own `metadata.tools`. Returns `None`
+/// (cert stays unbound) when no dir is given or either artifact is unreadable;
+/// failures warn but never block emission (an unbound cert beats no cert),
+/// mirroring `resolve_corpus_binding`.
+fn resolve_sbom_binding(cli: &BuildCertificateArgs) -> Option<SbomArtifactBinding> {
+    let root: PathBuf = cli
+        .sbom_dir
+        .clone()
+        .or_else(|| std::env::var(ENV_SBOM_DIR).ok().map(PathBuf::from))?;
+    let bom_path = root.join(SBOM_BOM_RELPATH);
+    let audit_path = root.join(SBOM_AUDIT_RELPATH);
+    let bom_bytes = match std::fs::read(&bom_path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!(
+                "warning: SBOM {} unreadable: {e} (cert unbound)",
+                bom_path.display()
+            );
+            return None;
+        }
+    };
+    let audit_hash = match sha256_file(&audit_path) {
+        Ok(h) => h,
+        Err(e) => {
+            eprintln!(
+                "warning: audit artifact {} unreadable: {e} (cert unbound)",
+                audit_path.display()
+            );
+            return None;
+        }
+    };
+    Some(SbomArtifactBinding {
+        bom_hash: sha256_bytes(&bom_bytes),
+        audit_hash,
+        bom_tool_version: read_bom_tool_version(&bom_bytes),
+    })
+}
+
+/// Read the BOM generator's version from a CycloneDX BOM's `metadata.tools`,
+/// tolerating both the 1.5+ `tools.components[]` shape and the legacy `tools[]`
+/// array. Prefers a tool whose name contains "cyclonedx"; falls back to the
+/// first entry carrying a version, then to "unknown". Reading one field for
+/// provenance does not recompute the BOM: the byte hash above still spans the
+/// full file.
+fn read_bom_tool_version(bom_bytes: &[u8]) -> String {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(bom_bytes) else {
+        return "unknown".to_string();
+    };
+    let tools = &v["metadata"]["tools"];
+    let entries = tools["components"].as_array().or_else(|| tools.as_array());
+    if let Some(arr) = entries {
+        let pick = arr
+            .iter()
+            .find(|c| {
+                c["name"]
+                    .as_str()
+                    .is_some_and(|n| n.to_ascii_lowercase().contains("cyclonedx"))
+            })
+            .or_else(|| arr.iter().find(|c| c["version"].is_string()));
+        if let Some(ver) = pick.and_then(|c| c["version"].as_str()) {
+            return ver.to_string();
+        }
+    }
+    "unknown".to_string()
+}
+
 /// Parse the signer flags, returning `Ok(None)` when no signer was supplied,
 /// `Ok(Some(_))` when fully populated, and an error string when partial.
 fn build_signer(cli: &BuildCertificateArgs) -> Result<Option<Signer>, String> {
@@ -355,12 +447,20 @@ fn build_certificate(
     requirements_hash: &str,
     signer: Option<Signer>,
     corpus_binding: Option<CorpusBinding>,
+    sbom_binding: Option<SbomArtifactBinding>,
 ) -> Result<GovernanceCertificate, String> {
     if signer.is_none() && corpus_binding.is_some() {
         eprintln!(
             "warning: a corpus attestation was supplied but no signer; corpus \
              binding is applied only on the tenant (signer) build path (spec \
              220 FR-007). Emitting without corpus binding."
+        );
+    }
+    if signer.is_none() && sbom_binding.is_some() {
+        eprintln!(
+            "warning: an SBOM directory was supplied but no signer; the SBOM \
+             binding is applied only on the tenant (signer) build path (spec \
+             203 FR-003). Emitting without SBOM binding."
         );
     }
 
@@ -430,6 +530,12 @@ fn build_certificate(
         // recompute) when one was supplied.
         if let Some(cb) = corpus_binding {
             builder = builder.corpus_binding(cb.corpus_attestation_hash, cb.spec_spine_version);
+        }
+        // Spec 203 FR-003: bind the produced app's SBOM + audit artifact hashes
+        // (read, never recompute) when a --sbom-dir was supplied.
+        if let Some(sb) = sbom_binding {
+            builder =
+                builder.sbom_artifact_binding(sb.bom_hash, sb.audit_hash, sb.bom_tool_version);
         }
         let signed = builder
             .build_tenant()
