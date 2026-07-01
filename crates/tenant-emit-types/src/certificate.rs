@@ -58,6 +58,12 @@ use std::collections::BTreeMap;
 /// version: it is an optional cert field that serialises identically to a
 /// pre-binding payload when absent (the named "unbound" state), so it is not a
 /// version bump for the emit/verify pair. See [`CorpusBinding`].
+///
+/// The additive `sbomArtifactBinding` block (spec 203) is carried at this same
+/// version for the same reason: an optional cert field that serialises
+/// identically to a pre-binding payload when absent (the named "unbound"
+/// state), so it is not a version bump for the emit/verify pair. See
+/// [`SbomArtifactBinding`].
 pub const CERTIFICATE_VERSION: &str = "1.5.0";
 
 // ── Top-level Certificate ────────────────────────────────────────────
@@ -131,6 +137,18 @@ pub struct GovernanceCertificate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub corpus_binding: Option<CorpusBinding>,
 
+    /// Spec 203 FR-003 -- the produced application's BOM + dependency-audit
+    /// content binding, by content hash. Additive and optional: absence is a
+    /// named "unbound" state, not a failure. Inside the hash + signature (a
+    /// normal cert field, unlike `platform_countersign`); skipped when absent
+    /// so unbound certificates serialise byte-identically to pre-binding
+    /// payloads. See [`SbomArtifactBinding`].
+    ///
+    /// The emitter is GIVEN both hashes and never recomputes them (read,
+    /// never recompute, mirroring `corpus_binding`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sbom_artifact_binding: Option<SbomArtifactBinding>,
+
     /// SHA-256 of the canonical JSON of this certificate with `certificate_hash`
     /// AND `cert_signature` set to empty string. Content-binding fingerprint
     /// inside the signed payload -- not the authoritative provenance check
@@ -200,6 +218,38 @@ pub struct CorpusBinding {
     pub corpus_attestation_hash: String,
     pub spec_spine_version: String,
 }
+
+/// Spec 203 FR-003 -- the produced application's BOM + dependency-audit
+/// content binding. `bom_hash` and `audit_hash` are SHA-256 hex of the byte
+/// content of the CycloneDX BOM (`.factory/sbom.cdx.json`) and the
+/// dependency-audit artifact (`.factory/audit.json`) respectively;
+/// `bom_tool_version` is the `@cyclonedx/cyclonedx-npm` semver used to
+/// generate the BOM.
+///
+/// Additive and optional: a certificate without this block is a named
+/// "unbound" state, not a failure. `skip_serializing_if = "Option::is_none"`
+/// keeps unbound certificates byte-identical to pre-binding payloads, so
+/// their certificate hash is unchanged. When present the block is INSIDE the
+/// hash and signature (a normal cert field, unlike `platform_countersign`).
+///
+/// The emitter is GIVEN both hashes and never recomputes them (read, never
+/// recompute: the emit CLI hashes the on-disk artifact bytes as-is; it never
+/// regenerates the BOM).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SbomArtifactBinding {
+    pub bom_hash: String,
+    pub audit_hash: String,
+    pub bom_tool_version: String,
+}
+
+/// Spec 203 FR-003: relative path of the produced app's CycloneDX BOM, under
+/// the produced-app root supplied via `--sbom-dir`.
+pub const SBOM_BOM_RELPATH: &str = ".factory/sbom.cdx.json";
+
+/// Spec 203 FR-003: relative path of the produced app's dependency-audit
+/// artifact, under the produced-app root supplied via `--sbom-dir`.
+pub const SBOM_AUDIT_RELPATH: &str = ".factory/audit.json";
 
 /// Spec 198 FR-013(c) -- one override of admitted factory content the run
 /// consumed: artifact identity, content hash, author provenance (FR-013 b)

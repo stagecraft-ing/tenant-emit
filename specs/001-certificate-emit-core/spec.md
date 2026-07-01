@@ -48,10 +48,11 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
 
 - `crates/tenant-emit-types/src/certificate.rs`: the certificate DTOs
   (`GovernanceCertificate` and its sub-records, `Signer`, `CorpusBinding`,
-  `SigningAttestation(Kind)`), preserved verbatim from OAP so the canonical JSON,
-  the self-hash, and the Ed25519 signature stay byte-identical to what the
-  verifier re-derives. Pinned at `certificate_version` 1.5.0 with the additive
-  `corpusBinding` field.
+  `SbomArtifactBinding`, `SigningAttestation(Kind)`), preserved verbatim from OAP
+  so the canonical JSON, the self-hash, and the Ed25519 signature stay
+  byte-identical to what the verifier re-derives. Pinned at `certificate_version`
+  1.5.0 with the additive `corpusBinding` and `sbomArtifactBinding` fields (both
+  optional, skipped when absent, so unbound certificates stay byte-identical).
 - `crates/tenant-emit-types/src/inter_stage_manifest.rs`,
   `crates/tenant-emit-types/src/pipeline_state.rs`: the carrier types the cert
   references (manifest-chain DTOs; the minimal run-state slice the emitter reads).
@@ -77,6 +78,11 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
 - The corpus binding (spec 220 FR-007) MUST be read, never recomputed: the
   builder is GIVEN a hash and never compiles or re-attests the corpus. The
   binding is inside the content-binding hash and the signature.
+- The SBOM artifact binding (spec 203 FR-003) MUST likewise be read, never
+  recomputed: the builder is GIVEN the produced app's BOM and audit content
+  hashes (via `sbom_artifact_binding`) and never regenerates the BOM. Like the
+  corpus binding it is additive and optional (an unbound certificate is the named
+  unbound state) and sits inside the content-binding hash and the signature.
 - A tenant certificate MUST carry no platform countersign (a tenant run is
   outside OAP's admission/grant flow); it is verifiable-but-unsealed and verifies
   offline under tenant-tail verify-certificate.
@@ -87,7 +93,7 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
   platform-seal adjudication, and the corpus-binding verify are excluded by
   construction and vended as tenant-tail (spec 219).
 - The CLI verb surface and its flags (the `build-certificate` command,
-  `--require-operator-key`, the corpus read-path wiring): owned by
-  `002-distribution`.
+  `--require-operator-key`, the corpus read-path, and the SBOM read-path
+  (`--sbom-dir`) wiring): owned by `002-distribution`.
 - The certificate format and verdict logic (specs 102/168/170/198/218): tenant-
   emit changes who emits and where the key lives, not what a valid certificate is.

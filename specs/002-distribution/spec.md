@@ -62,7 +62,9 @@ the release pipeline.
   `--signer-identity-provider`, `--signer-session-id`), `--stage-ids`,
   `--require-operator-key` (spec 220 FR-003), `--corpus-attestation` (spec 220
   FR-007, read via the public `spec_spine_core::attest::attestation_hash` seam),
-  `--out`, and `--adapter`. No verify verb is reachable.
+  `--sbom-dir` (spec 203 FR-003: reads `<root>/.factory/{sbom.cdx.json,audit.json}`,
+  hashes the bytes, and lifts the BOM tool version from the BOM's `metadata.tools`;
+  read, never recompute), `--out`, and `--adapter`. No verify verb is reachable.
 - `clippy.toml`, `deny.toml`: the read-never-recompute guard. clippy bans the
   attestation-emit / corpus-recompute symbols (`attest`, `verify_recompute`,
   `attest_json`, `verify_attestation_json`); cargo-deny bans depending on the
