@@ -22,7 +22,7 @@ members = [
 
 # Shared metadata inherited by member crates via `field.workspace = true`.
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
@@ -52,8 +52,8 @@ thiserror = "2"
 spec-spine-core = { version = "0.8.0", default-features = false }
 spec-spine-types = "0.8.0"
 # Internal crates (path + version so the published surface is not path-only).
-tenant-emit-types = { version = "0.1.0", path = "crates/tenant-emit-types" }
-tenant-emit-core = { version = "0.1.0", path = "crates/tenant-emit-core" }
+tenant-emit-types = { version = "0.2.0", path = "crates/tenant-emit-types" }
+tenant-emit-core = { version = "0.2.0", path = "crates/tenant-emit-core" }
 
 # The emit core is crypto + serde only; no unsafe is required, and the public
 # boundary is FFI-friendly without it (mirrors spec-spine / tenant-tail).

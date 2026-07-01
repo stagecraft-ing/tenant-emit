@@ -4,8 +4,8 @@
     "name": "tenant-emit-repo",
     "path": "",
     "specRef": "000-tenant-emit-bootstrap",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "schemaVersion": "1.1.0",
-  "shardHash": "d2d366009070d6e41a8d4d2ea9cbca295d0a3002ccb8012983195383c822f106"
+  "shardHash": "bdc23be7511cbd3394ed6d3254abd77fe1b9021275949322c3a084319f1de766"
 }
