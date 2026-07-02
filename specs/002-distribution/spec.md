@@ -10,7 +10,10 @@ risk: medium
 summary: >
   How the tenant-emit emitter reaches a produced application: the CLI verb
   surface (`build-certificate`, with `--tenant-mode`, the signer flags,
-  `--require-operator-key`, and the `--corpus-attestation` read-path), the
+  `--require-operator-key`, the `--corpus-attestation` and `--sbom-dir`
+  read-paths, and the `--require-corpus-binding` / `--require-sbom-binding`
+  guards that exit 2 rather than emit a certificate that lost a binding it was
+  told to carry, all under a fixed exit-code contract), the
   prebuilt-binary npm shim a TS/JS app pins next to spec-spine and tenant-tail
   (one exact-version devDependency), and the tag-gated release pipeline that
   builds the five per-triple archives (with CycloneDX SBOM + .sha256 sidecars +
@@ -61,10 +64,13 @@ the release pipeline.
   positional `<run-dir>`, the signer flags (`--tenant-mode`, `--signer-subject`,
   `--signer-identity-provider`, `--signer-session-id`), `--stage-ids`,
   `--require-operator-key` (spec 220 FR-003), `--corpus-attestation` (spec 220
-  FR-007, read via the public `spec_spine_core::attest::attestation_hash` seam),
-  `--sbom-dir` (spec 203 FR-003: reads `<root>/.factory/{sbom.cdx.json,audit.json}`,
-  hashes the bytes, and lifts the BOM tool version from the BOM's `metadata.tools`;
-  read, never recompute), `--out`, and `--adapter`. No verify verb is reachable.
+  FR-007, read via the public `spec_spine_core::attest::attestation_hash` seam)
+  with `--require-corpus-binding` (refuse to emit, exit 2, unless the corpus
+  binding is actually applied), `--sbom-dir` (spec 203 FR-003: reads
+  `<root>/.factory/{sbom.cdx.json,audit.json}`, hashes the bytes, and lifts the
+  BOM tool version from the BOM's `metadata.tools`; read, never recompute) with
+  `--require-sbom-binding` (the symmetric refuse-if-unapplied guard for the SBOM
+  binding), `--out`, and `--adapter`. No verify verb is reachable.
 - `clippy.toml`, `deny.toml`: the read-never-recompute guard. clippy bans the
   attestation-emit / corpus-recompute symbols (`attest`, `verify_recompute`,
   `attest_json`, `verify_attestation_json`); cargo-deny bans depending on the
@@ -84,6 +90,23 @@ the release pipeline.
 - `npx --no-install tenant-emit build-certificate <run-dir> ...` MUST run the
   emitter offline, forwarding argv unchanged to the prebuilt binary (the launcher
   is a pure translation layer; it adds no flags).
+- The verb MUST honor a fixed exit-code contract, with every configuration or
+  input error checked before anything is written so a rejected emission leaves no
+  partial certificate on disk: `0` on success; `1` only for a runtime I/O failure
+  after the certificate was built (it could not be persisted); and `2` for every
+  up-front configuration or input error (the run directory is missing, the signer
+  flags are partial or `--tenant-mode` carries no signer, an operator-supplied
+  key is malformed, `--require-operator-key` resolved to an ephemeral key, a
+  required binding could not be applied, or a `--business-docs` file is
+  unreadable). A malformed operator key is a config error (exit 2), never a
+  silent ephemeral downgrade.
+- `--require-corpus-binding` and `--require-sbom-binding` MUST refuse to emit
+  (exit 2) unless the named binding is actually applied. Because a binding is
+  applied only on the signer (tenant) build path (spec 001 §3), requiring one
+  requires both that its artifact resolved (a corpus attestation, or the BOM +
+  audit pair) AND that a signer is present, so a production emission can never
+  silently ship a certificate that dropped a binding it was told to carry behind
+  a warning. The two guards mirror `--require-operator-key`.
 - The five platform targets (darwin-arm64, darwin-x64, linux-x64, linux-arm64,
   win32-x64) are a single fact kept in lockstep across the npm platform map, the
   py platform map, the generators, and the release matrix.
