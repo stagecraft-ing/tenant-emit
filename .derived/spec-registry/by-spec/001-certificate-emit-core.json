@@ -58,6 +58,6 @@
     "summary": "The certificate emit engine, extracted from OAP's build_certificate.rs + governance_certificate.rs (the emit path) and kept in behavior parity. It reconstructs a signed governance-certificate.json from a finished `.factory/runs/<run-id>/<stage-id>/<artifacts>` directory: it scans each stage directory, computes SHA-256 over every file, lifts the frozen Build Spec hash, attaches an attributable signer, resolves an Ed25519 signing key (operator env-var or ephemeral fallback), computes the content-binding hash and the Ed25519 signature, and persists the certificate. It optionally binds the tenant's own corpus attestation by hash (read, never recompute). The emitted certificate carries the cert DTOs at `certificate_version` 1.5.0 with the additive corpusBinding field, so it round-trips offline under tenant-tail verify-certificate.\n",
     "title": "Certificate emit core (builder, signing, run-dir scan, corpus binding)"
   },
-  "shardHash": "2f2433e16ae097c99eca1bd5942e6885d55b6b631b12744f27267b95cd4eab9f",
+  "shardHash": "aaf789a682c2ee4293128d66a576b3067e85f863ead09b93aa369c94eb00c90a",
   "specVersion": "1.1.0"
 }

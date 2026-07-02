@@ -77,12 +77,18 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
   ephemeral`). The emitter signs the certificate, not the corpus attestation.
 - The corpus binding (spec 220 FR-007) MUST be read, never recomputed: the
   builder is GIVEN a hash and never compiles or re-attests the corpus. The
-  binding is inside the content-binding hash and the signature.
+  binding sits inside the content-binding hash and the signature, so it is
+  applied only on the signer (tenant) build path; an unbound certificate is a
+  valid state, and it is the CLI's `--require-corpus-binding` guard (spec 002 §3),
+  not the engine, that turns a missing binding into a refusal.
 - The SBOM artifact binding (spec 203 FR-003) MUST likewise be read, never
   recomputed: the builder is GIVEN the produced app's BOM and audit content
   hashes (via `sbom_artifact_binding`) and never regenerates the BOM. Like the
   corpus binding it is additive and optional (an unbound certificate is the named
-  unbound state) and sits inside the content-binding hash and the signature.
+  unbound state) and sits inside the content-binding hash and the signature, so
+  it too is applied only on the signer path; the CLI's `--require-sbom-binding`
+  guard (spec 002 §3) is the symmetric refusal when a production emission must
+  carry it.
 - A tenant certificate MUST carry no platform countersign (a tenant run is
   outside OAP's admission/grant flow); it is verifiable-but-unsealed and verifies
   offline under tenant-tail verify-certificate.
