@@ -38,4 +38,8 @@ The certificate records the origin of the key in the `signingAttestation.kind` f
 - `"operator"`: The key was supplied via `OAP_SIGNING_KEY` or `OAP_SIGNING_KEY_PATH`. The operator vouches for runs using this key.
 - `"ephemeral"`: A key was generated for this run. Trust is limited to "the run was internally consistent." Suitable for local development only.
 
+The accompanying `signingAttestation.note` records only the *source* of the key (for example `source=OAP_SIGNING_KEY_PATH`), never the key file's filesystem path: the certificate is a shareable, offline-verifiable artifact, so it must not leak where the operator keeps the signing key.
+
+A malformed operator-supplied key is a hard configuration error (exit code 2), never a silent fall-back to an ephemeral key: an operator who tried to supply a key is told it was rejected rather than getting an untrusted certificate.
+
 The `tenant-tail` verifier will inspect this field when evaluating the certificate's trust posture.

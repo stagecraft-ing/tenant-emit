@@ -26,6 +26,17 @@
 //!     reader seam `spec_spine_core::attest::attestation_hash` (FR-007). Read,
 //!     never recompute: the emit-side attestation-emit / corpus-recompute
 //!     functions are banned workspace-wide (clippy.toml + deny.toml).
+//!
+//! Exit codes:
+//!   * `0` -- success; the certificate was written.
+//!   * `1` -- runtime I/O failure after the certificate was built (e.g. the
+//!     certificate could not be persisted to disk).
+//!   * `2` -- configuration or input error, detected before anything is
+//!     written: the run directory is missing, the signer flags are partial or
+//!     `--tenant-mode` has no signer, an operator-supplied signing key is
+//!     malformed, `--require-operator-key` resolved to an ephemeral key, a
+//!     required binding (`--require-corpus-binding` / `--require-sbom-binding`)
+//!     could not be applied, or a `--business-docs` file is unreadable.
 
 use clap::{Parser, Subcommand};
 use sha2::{Digest, Sha256};
@@ -35,8 +46,9 @@ use tenant_emit_core::{
     CertificateBuildError, CertificateBuilder, ChainIntegrity, CorpusBinding, FactoryPipelineState,
     GovernanceCertificate, IntentRecord, OAP_STAGE_IDS, ProofChainSummary, SBOM_AUDIT_RELPATH,
     SBOM_BOM_RELPATH, SbomArtifactBinding, Signer, SigningAttestationKind, VerificationOutcome,
-    VerificationRecord, generate_certificate_with_stage_ids, persist_certificate, sha256_bytes,
-    sha256_file, validate_spec_id_resolution, write_validation_warnings,
+    VerificationRecord, generate_certificate_with_stage_ids, persist_certificate_at, sha256_bytes,
+    sha256_file, try_resolve_signing_material, validate_spec_id_resolution,
+    write_validation_warnings,
 };
 
 #[derive(Parser)]
@@ -77,8 +89,9 @@ struct BuildCertificateArgs {
     #[arg(long, num_args = 1..)]
     business_docs: Vec<PathBuf>,
 
-    /// Override certificate output path. Defaults to
-    /// `<run-dir>/governance-certificate.json`.
+    /// Full output file path (including the file name) for the emitted
+    /// certificate. Parent directories are created as needed. Defaults to
+    /// `<run-dir>/governance-certificate.json` when omitted.
     #[arg(long)]
     out: Option<PathBuf>,
 
@@ -130,6 +143,14 @@ struct BuildCertificateArgs {
     #[arg(long)]
     corpus_attestation: Option<PathBuf>,
 
+    /// Refuse to emit unless a corpus binding is actually applied. When set,
+    /// the binary exits 2 if no corpus attestation resolved (missing,
+    /// unreadable, or malformed) or if there is no signer to bind it onto,
+    /// so a production emission can never silently drop the binding behind a
+    /// warning. Mirrors `--require-operator-key`.
+    #[arg(long, default_value_t = false)]
+    require_corpus_binding: bool,
+
     /// Spec 203 FR-003: produced-app root whose `.factory/sbom.cdx.json` and
     /// `.factory/audit.json` are bound into the certificate by content hash
     /// (read, never recompute). Falls back to the OAP_SBOM_DIR env var.
@@ -139,6 +160,13 @@ struct BuildCertificateArgs {
     /// binding.
     #[arg(long)]
     sbom_dir: Option<PathBuf>,
+
+    /// Refuse to emit unless an SBOM artifact binding is actually applied.
+    /// When set, the binary exits 2 if the BOM/audit artifacts did not resolve
+    /// or if there is no signer to bind them onto. Mirrors
+    /// `--require-corpus-binding`.
+    #[arg(long, default_value_t = false)]
+    require_sbom_binding: bool,
 }
 
 fn main() -> ExitCode {
@@ -185,15 +213,34 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
         let mut hasher = Sha256::new();
         for p in &cli.business_docs {
             match std::fs::read(p) {
-                Ok(bytes) => hasher.update(&bytes),
+                Ok(bytes) => {
+                    // Domain separation: length-prefix each document so shifting
+                    // bytes across a file boundary cannot collide (e.g. ["ab","c"]
+                    // and ["a","bc"] hash differently).
+                    hasher.update((bytes.len() as u64).to_le_bytes());
+                    hasher.update(&bytes);
+                }
                 Err(e) => {
-                    eprintln!("warning: could not read {}: {e}", p.display());
+                    // A requirements hash computed over partial content is worse
+                    // than none: fail loudly rather than silently under-hash.
+                    eprintln!(
+                        "error: could not read --business-docs file {}: {e}",
+                        p.display()
+                    );
+                    return ExitCode::from(2);
                 }
             }
         }
         format!("{:x}", hasher.finalize())
     } else {
-        cli.requirements_hash.clone().unwrap_or_default()
+        let hash = cli.requirements_hash.clone().unwrap_or_default();
+        if hash.is_empty() {
+            eprintln!(
+                "warning: neither --requirements-hash nor --business-docs supplied; \
+                 intent.requirementsHash will be empty"
+            );
+        }
+        hash
     };
 
     let signer = match build_signer(&cli) {
@@ -203,6 +250,8 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+
+    let has_signer = signer.is_some();
 
     if cli.tenant_mode && signer.is_none() {
         eprintln!(
@@ -214,8 +263,56 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
         return ExitCode::from(2);
     }
 
+    // Resolve the signing material up front so a malformed operator-supplied
+    // key is a clean configuration error (exit 2), not a panic (spec 220
+    // FR-003). The build path re-resolves the same operator key from the
+    // environment; only the ephemeral fallback differs per resolution, and the
+    // certificate uses the build path's key. The resolved trust posture (kind)
+    // is stable across both resolutions since the environment does not change.
+    let signing_kind = match try_resolve_signing_material() {
+        Ok((_key, attestation)) => attestation.kind,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    // Spec 220 FR-003: a production tenant emission must use an operator key.
+    // Checked before anything is built or written, so exiting here emits nothing.
+    if cli.require_operator_key && matches!(signing_kind, SigningAttestationKind::Ephemeral) {
+        eprintln!(
+            "error: --require-operator-key was set but the signing material \
+             resolved to an ephemeral key (spec 220 FR-003). A production \
+             tenant emission must supply an operator key via OAP_SIGNING_KEY \
+             or OAP_SIGNING_KEY_PATH; refusing to emit an untrusted certificate."
+        );
+        return ExitCode::from(2);
+    }
+
     let corpus_binding = resolve_corpus_binding(&cli);
     let sbom_binding = resolve_sbom_binding(&cli);
+
+    // A binding is only applied on the signer build path, so requiring one also
+    // requires a signer. Fail before emitting so a production cert can never
+    // silently ship without the binding it was told to carry.
+    if cli.require_corpus_binding && (corpus_binding.is_none() || !has_signer) {
+        eprintln!(
+            "error: --require-corpus-binding was set but no corpus binding could \
+             be applied (a corpus attestation must resolve AND a signer must be \
+             present); refusing to emit a certificate without the required \
+             corpus binding."
+        );
+        return ExitCode::from(2);
+    }
+    if cli.require_sbom_binding && (sbom_binding.is_none() || !has_signer) {
+        eprintln!(
+            "error: --require-sbom-binding was set but no SBOM artifact binding \
+             could be applied (the BOM/audit artifacts must resolve AND a signer \
+             must be present); refusing to emit a certificate without the \
+             required SBOM binding."
+        );
+        return ExitCode::from(2);
+    }
 
     let cert = match build_certificate(
         &cli,
@@ -232,40 +329,21 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
         }
     };
 
-    // Spec 220 FR-003: a production tenant emission must use an operator key.
-    // The cert is built but not yet persisted, so exiting here writes nothing.
-    if cli.require_operator_key
-        && matches!(
-            cert.signing_attestation.kind,
-            SigningAttestationKind::Ephemeral
-        )
-    {
-        eprintln!(
-            "error: --require-operator-key was set but the signing material \
-             resolved to an ephemeral key (spec 220 FR-003). A production \
-             tenant emission must supply an operator key via OAP_SIGNING_KEY \
-             or OAP_SIGNING_KEY_PATH; refusing to emit an untrusted certificate."
-        );
-        return ExitCode::from(2);
-    }
-
-    let out_dir = match cli.out.as_ref() {
-        Some(p) => p
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(".")),
-        None => cli.run_dir.clone(),
+    // The certificate is written to the exact `--out` path (including its file
+    // name) when supplied, else to `<run-dir>/governance-certificate.json`.
+    let cert_path = match cli.out.as_ref() {
+        Some(p) => p.clone(),
+        None => cli.run_dir.join("governance-certificate.json"),
     };
 
-    if let Err(e) = persist_certificate(&cert, &out_dir) {
+    if let Err(e) = persist_certificate_at(&cert, &cert_path) {
         eprintln!(
             "error: failed to persist certificate at {}: {e}",
-            out_dir.display()
+            cert_path.display()
         );
         return ExitCode::from(1);
     }
 
-    let cert_path = out_dir.join("governance-certificate.json");
     println!(
         "governance certificate written: {} (status={:?}, stages={}, hash={}...)",
         cert_path.display(),
@@ -464,11 +542,19 @@ fn build_certificate(
         );
     }
 
+    // Split the comma list, dropping empty entries so `--stage-ids ""` or a
+    // stray comma (`a,,b`) never yields an empty stage id (which would resolve
+    // to the run dir itself and record top-level files under an empty stage_id).
     let stage_ids_owned: Option<Vec<String>> = cli
         .stage_ids
         .as_deref()
         .filter(|s| !s.eq_ignore_ascii_case("auto"))
-        .map(|s| s.split(',').map(|t| t.trim().to_string()).collect());
+        .map(|s| {
+            s.split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect()
+        });
 
     // No signer + no custom stages -> keep the existing fast path.
     if signer.is_none() && cli.stage_ids.is_none() {

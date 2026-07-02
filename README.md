@@ -54,6 +54,20 @@ compiles or re-attests the corpus; the attestation-emit / corpus-recompute
 surface is banned at the symbol level (`clippy.toml`) and the crate level
 (`deny.toml`), mirroring OAP's spec 218 FR-002 guard.
 
+`--require-corpus-binding` refuses to emit (exit 2) unless the binding is
+actually applied (an attestation resolved and a signer is present), so a
+production emission can never silently drop it behind a warning.
+
+## SBOM artifact binding (read, never recompute)
+
+`--sbom-dir <root>` (or `OAP_SBOM_DIR`) binds the produced application's
+CycloneDX BOM (`.factory/sbom.cdx.json`) and dependency-audit artifact
+(`.factory/audit.json`) into the certificate by content hash (spec 203 FR-003).
+The emitter hashes the on-disk bytes as-is and reads the BOM generator's version
+from the BOM's own `metadata.tools`; it never regenerates the BOM. Like the
+corpus binding it is additive and applied only on the signer path, and
+`--require-sbom-binding` refuses to emit (exit 2) unless it is actually applied.
+
 ## Governing artifacts
 
 - **OAP spec 220-tenant-emit-governance-certificate** -- the decision to vend,

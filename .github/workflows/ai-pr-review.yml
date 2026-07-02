@@ -48,15 +48,23 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
 
       - name: Compute diff size
         id: diff
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          DIFF_LINES=$(git diff origin/main...HEAD --stat | tail -1 | grep -oP '\d+ insertion' | grep -oP '\d+' || echo "0")
-          echo "lines=$DIFF_LINES" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          # Diff against the PR's ACTUAL base branch (not a hardcoded `main`),
+          # and count BOTH added and deleted lines so a deletion-heavy PR is not
+          # mis-sized near zero and waved through unreviewed. numstat's binary
+          # rows carry '-'; awk coerces those to 0.
+          DIFF_LINES=$(git diff "origin/${BASE_REF}...HEAD" --numstat | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          echo "base_ref=${BASE_REF}" >> "$GITHUB_OUTPUT"
+          echo "lines=${DIFF_LINES}" >> "$GITHUB_OUTPUT"
           if [ "$DIFF_LINES" -gt "$DIFF_SIZE_CAP" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
@@ -65,7 +73,7 @@ jobs:
 
       - name: Generate diff
         if: steps.diff.outputs.skip != 'true'
-        run: git diff origin/main...HEAD > /tmp/pr-diff.txt
+        run: git diff "origin/${{ steps.diff.outputs.base_ref }}...HEAD" > /tmp/pr-diff.txt
 
       - name: Install Claude CLI
         if: steps.diff.outputs.skip != 'true'
@@ -82,11 +90,23 @@ jobs:
           # API key wins by precedence over the OAuth token and is a silent
           # auth failure.
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Fork PRs never receive repo secrets; used below to tell "expected
+          # skip on a fork" apart from "misconfigured same-repo PR".
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
           set -o pipefail
           # Distinct, surfaced failure if the OAuth secret is unset, so an
           # operator can tell "secret missing" from "API error".
           if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            # A fork-originated PR cannot see repo secrets, so an unset token
+            # there is expected -- skip visibly (loud warning) and pass, exactly
+            # like the oversized-diff skip. A maintainer reviews such PRs by hand.
+            if [ "${IS_FORK:-false}" = "true" ]; then
+              echo "::warning title=AI review skipped (fork PR)::secrets are not available to fork-originated pull requests, so the AI review did not run. A maintainer must review this PR manually. ci-gate passes (a visible skip, not a silent green)."
+              echo "review_status=fork_skip" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Same-repo PR with no token is a genuine configuration bug: hard fail.
             echo "::error::CLAUDE_CODE_OAUTH_TOKEN secret is unset; AI review cannot authenticate."
             exit 1
           fi

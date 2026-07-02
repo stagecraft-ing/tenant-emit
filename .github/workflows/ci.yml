@@ -30,7 +30,7 @@ jobs:
     name: build · test · clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       # rust-toolchain.toml pins the exact channel (+ rustfmt, clippy).
       - name: Show toolchain
         run: rustc --version && cargo --version
@@ -47,13 +47,13 @@ jobs:
     name: self-governance (compile · index · lint · couple)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Full history so the coupling gate can diff the PR base SHA against
           # HEAD; the default shallow clone (fetch-depth 1) leaves the base
           # commit absent and `git diff base...HEAD` fails.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
       # Root package.json pins spec-spine as a devDependency; npm ci installs it
@@ -88,6 +88,66 @@ jobs:
     name: determinism
     uses: ./.github/workflows/determinism.yml
 
+  # The load-bearing invariant made executable: a certificate emitted by
+  # `tenant-emit` MUST verify clean under the SEPARATELY-VENDED `tenant-tail`
+  # verifier, and tampering an artifact MUST fail verification (exit 1). This
+  # job installs the released tenant-tail from crates.io and drives the real
+  # cross-tool round-trip. It is a VISIBLE skip (a loud ::warning::, never a
+  # silent green) until tenant-tail is published, and becomes enforcing the
+  # moment it is -- matching the repo's anti-silent-green posture elsewhere.
+  roundtrip:
+    name: cross-tool round-trip (emit → tenant-tail verify)
+    runs-on: ubuntu-latest
+    env:
+      TENANT_TAIL_VERSION: '0.2.0'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Show toolchain
+        run: rustc --version && cargo --version
+      - name: Build tenant-emit (the emitter under test)
+        run: cargo build --release --locked --bin tenant-emit
+      - name: Install released tenant-tail (the verifier)
+        id: verifier
+        run: |
+          set -uo pipefail
+          if cargo install tenant-tail-cli --version "${TENANT_TAIL_VERSION}" --locked --root "$RUNNER_TEMP/tt" >/tmp/tt-install.log 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "bin=$RUNNER_TEMP/tt/bin/tenant-tail" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=round-trip skipped::tenant-tail ${TENANT_TAIL_VERSION} is not installable from crates.io yet; the cross-tool round-trip did NOT run. ci-gate passes so the unpublished verifier does not block merges, and this becomes enforcing once tenant-tail publishes. A green ci-gate here does NOT imply the round-trip ran."
+            tail -n 5 /tmp/tt-install.log || true
+          fi
+      - name: Emit → verify clean → tamper → verify fails
+        if: steps.verifier.outputs.available == 'true'
+        env:
+          # Fixed operator seed (matches the integration tests); any valid
+          # 32-byte base64 seed works. Test-only, not a real key.
+          OAP_SIGNING_KEY: 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='
+        run: |
+          set -euo pipefail
+          EMIT="target/release/tenant-emit"
+          TT="${{ steps.verifier.outputs.bin }}"
+          RUN="$RUNNER_TEMP/run/.factory/runs/run-ci-001"
+          mkdir -p "$RUN/tenant-codegen"
+          printf 'fn main(){}\n' > "$RUN/tenant-codegen/app.rs"
+
+          "$EMIT" build-certificate "$RUN" \
+            --tenant-mode \
+            --signer-subject ci@tenant --signer-identity-provider github-actions \
+            --stage-ids auto --require-operator-key
+
+          echo "== verify clean (must exit 0) =="
+          "$TT" verify-certificate "$RUN/governance-certificate.json" --artifact-dir "$RUN"
+
+          echo "== tamper an artifact, then verify (must exit 1) =="
+          printf 'tampered\n' > "$RUN/tenant-codegen/app.rs"
+          if "$TT" verify-certificate "$RUN/governance-certificate.json" --artifact-dir "$RUN"; then
+            echo "FAIL: the verifier accepted a tampered artifact"
+            exit 1
+          fi
+          echo "round-trip OK: clean verify passed, tamper was rejected"
+
   # AI PR review folded into the gate (OAP spec 177 + 085 precedent). PR-only:
   # it needs PR context (number, base/head diff), so it is skipped on
   # push/merge_group/workflow_dispatch, which ci-gate treats as success.
@@ -110,15 +170,15 @@ jobs:
   ci-gate:
     name: ci-gate
     if: ${{ always() }}
-    needs: [test, self_governance, determinism, ai-review]
+    needs: [test, self_governance, determinism, roundtrip, ai-review]
     runs-on: ubuntu-latest
     steps:
       - name: Require all CI jobs to have passed
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
           echo "A required CI job failed or was cancelled:"
-          echo "  test=${{ needs.test.result }}  self_governance=${{ needs.self_governance.result }}  determinism=${{ needs.determinism.result }}  ai-review=${{ needs.ai-review.result }}"
+          echo "  test=${{ needs.test.result }}  self_governance=${{ needs.self_governance.result }}  determinism=${{ needs.determinism.result }}  roundtrip=${{ needs.roundtrip.result }}  ai-review=${{ needs.ai-review.result }}"
           exit 1
       - name: All required CI jobs passed
         run: |
-          echo "ci-gate passed: test, self_governance, determinism, and ai-review are all green or skipped"
+          echo "ci-gate passed: test, self_governance, determinism, roundtrip, and ai-review are all green or skipped"

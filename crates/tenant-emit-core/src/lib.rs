@@ -17,10 +17,11 @@ pub mod certificate;
 // Emit engine surface, re-exported at the crate root for the CLI verb and tests.
 pub use certificate::{
     CapsuleBinding, CertificateBuildError, CertificateBuilder, ENV_SIGNING_KEY,
-    ENV_SIGNING_KEY_PATH, OAP_STAGE_IDS, ValidationWarning, compute_certificate_hash,
-    compute_certificate_signature, generate_certificate, generate_certificate_bound,
-    generate_certificate_with_stage_ids, persist_certificate, require_spec_id_resolution_enabled,
-    resolve_signing_material, sha256_bytes, sha256_file, validate_spec_id_resolution,
+    ENV_SIGNING_KEY_PATH, OAP_STAGE_IDS, SigningKeyError, ValidationWarning,
+    compute_certificate_hash, compute_certificate_signature, generate_certificate,
+    generate_certificate_bound, generate_certificate_with_stage_ids, persist_certificate,
+    persist_certificate_at, require_spec_id_resolution_enabled, resolve_signing_material,
+    sha256_bytes, sha256_file, try_resolve_signing_material, validate_spec_id_resolution,
     write_validation_warnings,
 };
 

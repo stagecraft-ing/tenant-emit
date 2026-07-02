@@ -45,6 +45,34 @@ pub enum CertificateBuildError {
     MissingSigner,
 }
 
+/// Errors raised while resolving operator-supplied signing material. Surfaced
+/// so the CLI can treat a malformed operator key as a configuration error
+/// (exit 2) instead of a panic. A quiet fallback to an ephemeral key when the
+/// operator expressly attempted to supply one would be a silent trust
+/// downgrade, so these are hard errors, never a fallback trigger.
+#[derive(Debug, thiserror::Error)]
+pub enum SigningKeyError {
+    /// `OAP_SIGNING_KEY` is set but is not a base64-encoded 32-byte seed.
+    #[error("OAP_SIGNING_KEY is set but malformed: {0}")]
+    MalformedEnvKey(String),
+    /// `OAP_SIGNING_KEY_PATH` is set but the file could not be read. The path
+    /// is included here (an operator-facing diagnostic on stderr), never in
+    /// the emitted certificate.
+    #[error("OAP_SIGNING_KEY_PATH={path} unreadable: {source}")]
+    KeyPathUnreadable {
+        path: String,
+        source: std::io::Error,
+    },
+    /// `OAP_SIGNING_KEY_PATH` is set but its contents are not a base64-encoded
+    /// 32-byte seed.
+    #[error("OAP_SIGNING_KEY_PATH={path} content malformed: {reason}")]
+    KeyPathMalformed { path: String, reason: String },
+    /// The OS random-number generator was unavailable for the ephemeral
+    /// fallback.
+    #[error("OS RNG unavailable: {0}")]
+    RngUnavailable(String),
+}
+
 // ── Certificate Builder ──────────────────────────────────────────────
 
 /// Builder for constructing a GovernanceCertificate from pipeline state.
@@ -292,47 +320,67 @@ impl CertificateBuilder {
 ///   2. `OAP_SIGNING_KEY_PATH` env var (file path) -- `Operator` kind.
 ///   3. Ephemeral key generated for this run -- `Ephemeral` kind.
 ///
-/// Returns the signing key plus the attestation describing the trust
-/// posture. Malformed operator-supplied material panics -- the caller
-/// should not silently fall back to ephemeral when the operator
-/// expressly attempted to supply a key (that would be a quiet downgrade).
+/// Returns the signing key plus the attestation describing the trust posture.
+/// Malformed operator-supplied material panics -- the caller should not
+/// silently fall back to ephemeral when the operator expressly attempted to
+/// supply a key (that would be a quiet downgrade). Callers that want to turn a
+/// malformed key into a clean error instead of a panic use
+/// [`try_resolve_signing_material`]; this thin wrapper is retained for OAP
+/// behavior parity and for the builder's internal signing path.
 pub fn resolve_signing_material() -> (SigningKey, SigningAttestation) {
+    try_resolve_signing_material().unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// Fallible sibling of [`resolve_signing_material`]. Same precedence
+/// (`OAP_SIGNING_KEY`, then `OAP_SIGNING_KEY_PATH`, then an ephemeral key), but
+/// a malformed operator-supplied key returns [`SigningKeyError`] instead of
+/// panicking, so the CLI can exit 2 (configuration error) with a clean message.
+///
+/// The returned attestation `note` records only the *source* env var name
+/// (`source=OAP_SIGNING_KEY_PATH`), never the key file's filesystem path: the
+/// certificate is a shareable, offline-verifiable artifact and must not leak
+/// where the operator keeps the signing key.
+pub fn try_resolve_signing_material() -> Result<(SigningKey, SigningAttestation), SigningKeyError> {
     if let Ok(b64) = std::env::var(ENV_SIGNING_KEY) {
-        let seed = decode_seed(&b64).unwrap_or_else(|e| {
-            panic!("{ENV_SIGNING_KEY} is set but malformed: {e}");
-        });
-        return (
+        let seed = decode_seed(&b64).map_err(SigningKeyError::MalformedEnvKey)?;
+        return Ok((
             SigningKey::from_bytes(&seed),
             SigningAttestation {
                 kind: SigningAttestationKind::Operator,
                 note: Some(format!("source={ENV_SIGNING_KEY}")),
             },
-        );
+        ));
     }
     if let Ok(path) = std::env::var(ENV_SIGNING_KEY_PATH) {
-        let contents = std::fs::read_to_string(&path).unwrap_or_else(|e| {
-            panic!("{ENV_SIGNING_KEY_PATH}={path} unreadable: {e}");
-        });
-        let seed = decode_seed(contents.trim()).unwrap_or_else(|e| {
-            panic!("{ENV_SIGNING_KEY_PATH}={path} content malformed: {e}");
-        });
-        return (
+        let contents = std::fs::read_to_string(&path).map_err(|source| {
+            SigningKeyError::KeyPathUnreadable {
+                path: path.clone(),
+                source,
+            }
+        })?;
+        let seed =
+            decode_seed(contents.trim()).map_err(|reason| SigningKeyError::KeyPathMalformed {
+                path: path.clone(),
+                reason,
+            })?;
+        return Ok((
             SigningKey::from_bytes(&seed),
             SigningAttestation {
                 kind: SigningAttestationKind::Operator,
-                note: Some(format!("source={ENV_SIGNING_KEY_PATH}:{path}")),
+                // Source kind only -- never the resolved path (no key-location leak).
+                note: Some(format!("source={ENV_SIGNING_KEY_PATH}")),
             },
-        );
+        ));
     }
     let mut seed = [0u8; 32];
-    getrandom::fill(&mut seed).expect("OS RNG unavailable");
-    (
+    getrandom::fill(&mut seed).map_err(|e| SigningKeyError::RngUnavailable(e.to_string()))?;
+    Ok((
         SigningKey::from_bytes(&seed),
         SigningAttestation {
             kind: SigningAttestationKind::Ephemeral,
             note: Some("auto-generated for pipeline run".into()),
         },
-    )
+    ))
 }
 
 fn decode_seed(s: &str) -> Result<[u8; 32], String> {
@@ -542,9 +590,13 @@ fn collect_stage_records_from_dir(artifact_dir: &Path) -> Vec<StageRecord> {
         return Vec::new();
     };
 
+    // `file_type()` reads the directory entry without traversing, so a
+    // symlinked directory reports as a symlink (not a dir) and is excluded:
+    // a symlinked stage dir must not pull content from outside the run dir
+    // into a signed certificate.
     let mut stage_dirs: Vec<String> = entries
         .flatten()
-        .filter(|e| e.path().is_dir())
+        .filter(|e| e.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
         .filter_map(|e| e.file_name().to_str().map(|s| s.to_string()))
         .collect();
     stage_dirs.sort();
@@ -555,8 +607,19 @@ fn collect_stage_records_from_dir(artifact_dir: &Path) -> Vec<StageRecord> {
         .collect()
 }
 
-/// Build a single [`StageRecord`] for the named stage by scanning
-/// `artifact_dir/<stage_id>/`.
+/// Build a single [`StageRecord`] for the named stage by scanning the
+/// top-level files of `artifact_dir/<stage_id>/`.
+///
+/// The scan is deliberately NON-recursive and skips symlinks:
+/// - Only top-level regular files of the stage directory are hashed. The
+///   artifact key is the bare file name, so nested files could not be
+///   distinguished (or re-read by the verifier, which joins
+///   `stage_dir/<name>`); recursion would silently collide same-named files.
+/// - Symlinks are skipped (with a warning): a symlinked artifact could bind
+///   content from outside the run directory (e.g. the operator's signing key)
+///   into a signed certificate.
+/// - An unreadable file is skipped with a warning rather than silently
+///   dropped, so a gap in coverage is visible on stderr.
 fn stage_record_for(artifact_dir: &Path, stage_id: &str) -> StageRecord {
     let stage_dir = artifact_dir.join(stage_id);
     let mut artifact_hashes = BTreeMap::new();
@@ -565,16 +628,33 @@ fn stage_record_for(artifact_dir: &Path, stage_id: &str) -> StageRecord {
         && let Ok(entries) = std::fs::read_dir(&stage_dir)
     {
         for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_symlink() {
+                eprintln!(
+                    "warning: skipping symlink in stage {stage_id}: {} (symlinked artifacts are not hashed into the certificate)",
+                    entry.file_name().to_string_lossy()
+                );
+                continue;
+            }
+            if !file_type.is_file() {
+                // Subdirectories and special files: the scan is non-recursive.
+                continue;
+            }
             let path = entry.path();
-            if path.is_file()
-                && let Ok(contents) = std::fs::read(&path)
-            {
-                let hash = sha256_bytes(&contents);
-                let name = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default();
-                artifact_hashes.insert(name, hash);
+            match sha256_file(&path) {
+                Ok(hash) => {
+                    let name = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_default();
+                    artifact_hashes.insert(name, hash);
+                }
+                Err(e) => eprintln!(
+                    "warning: skipping unreadable artifact in stage {stage_id}: {} ({e})",
+                    path.display()
+                ),
             }
         }
     }
@@ -602,20 +682,58 @@ pub fn sha256_bytes(data: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-/// SHA-256 hash of a file's contents.
+/// SHA-256 hash of a file's contents, streamed in fixed-size chunks so a
+/// multi-gigabyte artifact does not have to be held in memory at once. The
+/// digest is identical to hashing the whole byte string.
 pub fn sha256_file(path: &Path) -> std::io::Result<String> {
-    let data = std::fs::read(path)?;
-    Ok(sha256_bytes(&data))
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buf)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buf[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 // ── Persistence (FR-009) ─────────────────────────────────────────────
 
-/// Persist the certificate as `governance-certificate.json` in the given directory.
+/// Persist the certificate as `governance-certificate.json` in the given
+/// directory. Convenience wrapper over [`persist_certificate_at`].
 pub fn persist_certificate(cert: &GovernanceCertificate, output_dir: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(output_dir)?;
-    let path = output_dir.join("governance-certificate.json");
+    persist_certificate_at(cert, &output_dir.join("governance-certificate.json"))
+}
+
+/// Persist the certificate to an exact file path, creating parent directories
+/// as needed. The write is atomic: the JSON is written to a temporary sibling
+/// and renamed over the target, so a concurrent reader (or a crash mid-write)
+/// never observes a half-written certificate.
+pub fn persist_certificate_at(cert: &GovernanceCertificate, path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
     let json = serde_json::to_string_pretty(cert).map_err(std::io::Error::other)?;
-    std::fs::write(path, json)
+
+    // Temp sibling in the same directory (so the rename is same-filesystem and
+    // atomic), disambiguated by PID to avoid clashing with a concurrent emit.
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "governance-certificate.json".to_string());
+    let tmp = path.with_file_name(format!(".{file_name}.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, json)?;
+    match std::fs::rename(&tmp, path) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Best-effort cleanup of the temp file on a failed rename.
+            let _ = std::fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
 }
 
 // ── spec_id resolution validation (spec 102 G-2) ─────────────────────
@@ -1011,5 +1129,63 @@ mod tests {
                 .is_none()
         );
         assert!(!dir.path().join("validation-warnings.json").exists());
+    }
+
+    // ── symlink safety: a symlinked artifact must not be hashed into a cert ──
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_artifact_is_skipped_in_scan() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+
+        // A secret outside the stage dir, and a stage with a real file plus a
+        // symlink pointing at the secret. The scan must record the real file
+        // and skip the symlink (no out-of-run content bound into the cert).
+        let secret = dir.join("out-of-run-secret.txt");
+        std::fs::write(&secret, b"operator key material").unwrap();
+        let stage = dir.join("stage-x");
+        std::fs::create_dir_all(&stage).unwrap();
+        std::fs::write(stage.join("real.txt"), b"real artifact").unwrap();
+        std::os::unix::fs::symlink(&secret, stage.join("leaked.txt")).unwrap();
+
+        let state = pipeline_state_for_stage_tests();
+        let cert = generate_certificate_with_stage_ids(&state, "req", dir, None, &["stage-x"]);
+        let s = &cert.stages[0];
+        assert!(
+            s.artifact_hashes.contains_key("real.txt"),
+            "real files are still hashed"
+        );
+        assert!(
+            !s.artifact_hashes.contains_key("leaked.txt"),
+            "a symlinked artifact must not be hashed into the certificate"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_stage_dir_is_skipped_in_auto_discovery() {
+        // The symlink target lives in a separate tempdir so it is genuinely
+        // outside the scanned run directory (not itself a discoverable stage).
+        let target_tmp = tempfile::tempdir().unwrap();
+        let outside = target_tmp.path().join("outside");
+        std::fs::create_dir_all(outside.join("nested")).unwrap();
+        std::fs::write(outside.join("nested/x.txt"), b"x").unwrap();
+
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        // A real stage dir plus a symlink pointing out of the run directory.
+        // Auto discovery must record only the real stage.
+        write_stage_artifact(dir, "real-stage", "a.txt", b"a");
+        std::os::unix::fs::symlink(&outside, dir.join("linked-stage")).unwrap();
+
+        let state = pipeline_state_for_stage_tests();
+        let cert = generate_certificate_with_stage_ids(&state, "req", dir, None, &[]);
+        let ids: Vec<&str> = cert.stages.iter().map(|s| s.stage_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["real-stage"],
+            "a symlinked stage directory must not be discovered as a stage"
+        );
     }
 }
