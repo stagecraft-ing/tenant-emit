@@ -7,10 +7,13 @@
 //!
 //! The cross-tool round-trip (the emitted certificate verifies clean under
 //! `tenant-tail verify-certificate`, tamper -> exit 1) is the definition of
-//! correct; it is exercised in CI against the released tenant-tail and is
-//! covered structurally here by re-deriving the certificate self-hash and, for
-//! the corpus binding, by confirming the bound hash equals the SHA-256 of the
-//! canonical attestation bytes the verifier re-hashes.
+//! correct. It is covered structurally here by re-deriving the certificate
+//! self-hash and, for the corpus binding, by confirming the bound hash equals
+//! the SHA-256 of the canonical attestation bytes the verifier re-hashes. The
+//! *live* round-trip against a released `tenant-tail` binary runs in the
+//! `roundtrip` CI job (see `.github/workflows/ci.yml`), which emits, verifies
+//! clean, tampers an artifact, and asserts the verifier exits 1; that job is a
+//! visible skip (never a silent pass) until `tenant-tail` is installable.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -314,4 +317,129 @@ fn unbound_when_no_sbom_dir_supplied() {
         cert.sbom_artifact_binding.is_none(),
         "no --sbom-dir supplied -> unbound (named, not a failure)"
     );
+}
+
+/// Build `tenant-emit build-certificate <run>` with a clean environment (no
+/// signing / attestation vars leaking in), so a test sets exactly what it wants.
+fn emit_cmd(run: &Path) -> Command {
+    let mut cmd = Command::new(EMIT_BIN);
+    cmd.arg("build-certificate").arg(run);
+    cmd.env_remove("OAP_SIGNING_KEY");
+    cmd.env_remove("OAP_SIGNING_KEY_PATH");
+    cmd.env_remove("OAP_CORPUS_ATTESTATION_PATH");
+    cmd.env_remove("OAP_SBOM_DIR");
+    cmd
+}
+
+#[test]
+fn malformed_operator_key_is_config_error_not_panic() {
+    // A malformed OAP_SIGNING_KEY must be a clean configuration error (exit 2),
+    // never a panic (exit 101) and never a silent ephemeral downgrade.
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY", "@@@ not valid base64 @@@");
+    cmd.args(SIGNER_FLAGS);
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(code, 2, "malformed operator key -> exit 2 (config error)");
+    assert!(!run.join("governance-certificate.json").exists());
+}
+
+#[test]
+fn out_flag_writes_to_the_exact_path() {
+    // Regression: `--out` names the full file path (including the file name),
+    // and does not fall back to a `governance-certificate.json` in the parent.
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let out = dir.path().join("nested/dist/my-cert.json");
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY", OPERATOR_SEED_B64);
+    cmd.args(SIGNER_FLAGS);
+    cmd.arg("--out").arg(&out);
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(code, 0);
+    assert!(
+        out.exists(),
+        "certificate is written at the exact --out path"
+    );
+    assert!(
+        !run.join("governance-certificate.json").exists(),
+        "the default location is not used when --out is given"
+    );
+    let cert: GovernanceCertificate =
+        serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    assert_eq!(cert.certificate_hash, compute_certificate_hash(&cert));
+}
+
+#[test]
+fn require_corpus_binding_without_attestation_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY", OPERATOR_SEED_B64);
+    cmd.args(SIGNER_FLAGS);
+    cmd.arg("--require-corpus-binding");
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(
+        code, 2,
+        "require-corpus-binding with no attestation refuses"
+    );
+    assert!(!run.join("governance-certificate.json").exists());
+}
+
+#[test]
+fn require_sbom_binding_without_dir_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY", OPERATOR_SEED_B64);
+    cmd.args(SIGNER_FLAGS);
+    cmd.arg("--require-sbom-binding");
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(code, 2, "require-sbom-binding with no --sbom-dir refuses");
+    assert!(!run.join("governance-certificate.json").exists());
+}
+
+#[test]
+fn signing_key_path_is_not_leaked_into_the_certificate() {
+    // A certificate is a shareable, offline-verifiable artifact: resolving the
+    // key via OAP_SIGNING_KEY_PATH must NOT record the key file's path in the
+    // signing attestation note (only the source kind).
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let key_path = dir.path().join("operator-key.b64");
+    std::fs::write(&key_path, OPERATOR_SEED_B64).unwrap();
+
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY_PATH", &key_path);
+    cmd.args(SIGNER_FLAGS);
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(code, 0);
+
+    let cert = read_cert(&run);
+    assert_eq!(
+        cert.signing_attestation.kind,
+        SigningAttestationKind::Operator
+    );
+    let note = cert.signing_attestation.note.unwrap_or_default();
+    assert_eq!(note, "source=OAP_SIGNING_KEY_PATH");
+    let key_path_str = key_path.to_string_lossy();
+    assert!(
+        !note.contains(&*key_path_str) && !note.contains("operator-key.b64"),
+        "the key file path must not appear in the certificate (note was {note:?})"
+    );
+}
+
+#[test]
+fn unreadable_business_doc_exits_2() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    let mut cmd = emit_cmd(&run);
+    cmd.env("OAP_SIGNING_KEY", OPERATOR_SEED_B64);
+    cmd.args(SIGNER_FLAGS);
+    cmd.arg("--business-docs")
+        .arg(dir.path().join("does-not-exist.md"));
+    let code = cmd.status().unwrap().code().unwrap();
+    assert_eq!(code, 2, "an unreadable business doc is a hard error");
+    assert!(!run.join("governance-certificate.json").exists());
 }

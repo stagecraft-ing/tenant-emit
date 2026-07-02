@@ -138,9 +138,9 @@ def _metadata(version: str, requires_python: str) -> bytes:
         "Ships the prebuilt binary; no Rust toolchain required.\n"
         "License-Expression: Apache-2.0\n"
         "License-File: LICENSE\n"
-        "Project-URL: Homepage, https://github.com/bartekus/tenant-emit\n"
-        "Project-URL: Repository, https://github.com/bartekus/tenant-emit\n"
-        "Project-URL: Issues, https://github.com/bartekus/tenant-emit/issues\n"
+        "Project-URL: Homepage, https://github.com/stagecraft-ing/tenant-emit\n"
+        "Project-URL: Repository, https://github.com/stagecraft-ing/tenant-emit\n"
+        "Project-URL: Issues, https://github.com/stagecraft-ing/tenant-emit/issues\n"
         "Keywords: governance,certificate,emit,provenance,attestation,cli,rust,tenant\n"
         "Classifier: Development Status :: 4 - Beta\n"
         "Classifier: Environment :: Console\n"
@@ -151,7 +151,7 @@ def _metadata(version: str, requires_python: str) -> bytes:
         "\n"
         "Prebuilt `tenant-emit` binary wheel. The binary is installed to your "
         "environment's scripts directory; `tenant-emit`/`uvx tenant-emit` runs it "
-        "directly. See https://github.com/bartekus/tenant-emit#readme.\n"
+        "directly. See https://github.com/stagecraft-ing/tenant-emit#readme.\n"
     )
     return body.encode("utf-8")
 

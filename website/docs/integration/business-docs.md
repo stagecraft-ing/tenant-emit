@@ -18,13 +18,15 @@ You can populate this hash in two ways during emission.
 
 ## Hashing Files Directly
 
-If you have the business requirement documents available on disk at emission time, you can pass them to the `--business-docs` flag. The emitter will read the files, concatenate their contents, compute a single SHA-256 hash, and record it in the certificate.
+If you have the business requirement documents available on disk at emission time, you can pass them to the `--business-docs` flag. The emitter reads each file, feeds a length-prefixed, domain-separated stream of their contents into a single SHA-256 hash, and records it in the certificate. Length-prefixing each document means shifting bytes across a file boundary cannot produce the same hash (so `["ab", "c"]` and `["a", "bc"]` differ).
 
 ```bash
 tenant-emit build-certificate <run-dir> \
   --business-docs ./docs/PRD.md ./docs/security-requirements.pdf \
   --stage-ids auto
 ```
+
+If any listed document cannot be read, emission fails with exit code 2 rather than silently recording a hash over partial content.
 
 ## Providing a Precomputed Hash
 

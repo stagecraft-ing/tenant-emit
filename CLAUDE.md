@@ -30,20 +30,30 @@ Governance runs through the pinned `spec-spine` npm devDependency
   1.5.0. The emitter pins the same string so the round-trip exits 0. Do NOT bump
   to OAP's 1.6.0: that would fail the verifier's version gate. `corpusBinding` is
   additive (skipped when absent), not a version bump for this emit/verify pair.
-- **Read, never recompute (corpus binding).** `--corpus-attestation` hashes the
-  supplied attestation via the public reader seam
+- **Read, never recompute (corpus + SBOM bindings).** `--corpus-attestation`
+  hashes the supplied attestation via the public reader seam
   `spec_spine_core::attest::attestation_hash` only. The attestation-emit /
   corpus-recompute surface (`attest`, `verify_recompute`, `attest_json`,
   `verify_attestation_json`) is banned at the symbol level (`clippy.toml`
   disallowed-methods, enforced by `-D warnings`) and the crate level (cargo-deny
   bans depending on `spec-spine-cli`). The CLI test
-  `banned_attestation_emit_paths_still_resolve` keeps `clippy.toml` honest.
+  `banned_attestation_emit_paths_still_resolve` keeps `clippy.toml` honest. The
+  `--sbom-dir` binding (spec 203 FR-003) follows the same posture: the produced
+  app's `.factory/sbom.cdx.json` + `.factory/audit.json` are byte-hashed as-is
+  (BOM tool version read from the BOM's own `metadata.tools`), never
+  regenerated. Both bindings are additive (skipped when absent) and applied only
+  on the signer path; `--require-corpus-binding` / `--require-sbom-binding` exit
+  2 rather than silently emitting a cert that lost the binding it was told to
+  carry.
 - **Anonymous signing forbidden, ephemeral refused in production.**
   `--tenant-mode` with no signer halts before emitting (exit 2);
-  `--require-operator-key` exits 2 if signing resolves to an ephemeral key. The
-  Ed25519 key is operator-supplied (`OAP_SIGNING_KEY` / `OAP_SIGNING_KEY_PATH`),
-  outside any agent's write scope. The emitter signs the certificate, not the
-  corpus attestation.
+  `--require-operator-key` exits 2 if signing resolves to an ephemeral key. A
+  malformed operator-supplied key is a config error (exit 2), never a silent
+  ephemeral fall-back. The Ed25519 key is operator-supplied (`OAP_SIGNING_KEY` /
+  `OAP_SIGNING_KEY_PATH`), outside any agent's write scope, and its filesystem
+  path is never written into the certificate (the signing attestation records
+  only the source kind). The emitter signs the certificate, not the corpus
+  attestation.
 - **Determinism.** Re-emitting from the same run directory yields identical
   artifact and certificate content modulo the signer + timestamp (spec 220 AC-7).
 - **`unsafe_code` is forbidden workspace-wide.**
