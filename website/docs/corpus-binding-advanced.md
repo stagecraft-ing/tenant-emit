@@ -17,7 +17,7 @@ A corpus attestation is a JSON artifact produced by `spec-spine attest`. It cont
   "schemaVersion": "1.0.0",
   "tool": {
     "name": "spec-spine",
-    "version": "0.8.0"
+    "version": "0.10.0"
   },
   "inputsManifestHash": "...",
   "registryHash": "...",
@@ -41,7 +41,7 @@ This hash, along with the `spec-spine` version, is then recorded in the certific
 ```json
 "corpusBinding": {
   "corpusAttestationHash": "...",
-  "specSpineVersion": "0.8.0"
+  "specSpineVersion": "0.10.0"
 }
 ```
 

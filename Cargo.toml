@@ -49,8 +49,8 @@ thiserror = "2"
 # `links = "tree-sitter"` version clash. Read, never recompute: the emit-side
 # attestation-emit / corpus-recompute functions are banned (clippy.toml +
 # deny.toml), mirroring OAP's spec 218 FR-002 guard.
-spec-spine-core = { version = "0.8.0", default-features = false }
-spec-spine-types = "0.8.0"
+spec-spine-core = { version = "0.10.0", default-features = false }
+spec-spine-types = "0.10.0"
 # Internal crates (path + version so the published surface is not path-only).
 tenant-emit-types = { version = "0.2.0", path = "crates/tenant-emit-types" }
 tenant-emit-core = { version = "0.2.0", path = "crates/tenant-emit-core" }
