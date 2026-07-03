@@ -11,6 +11,7 @@
 // source if the launcher contract changes.
 
 const { execFileSync } = require('node:child_process');
+const os = require('node:os');
 const { resolveBinaryPath } = require('../lib/platform.js');
 
 let binPath;
@@ -24,12 +25,19 @@ try {
 try {
   execFileSync(binPath, process.argv.slice(2), { stdio: 'inherit' });
 } catch (err) {
-  if (typeof err.status === 'number') {
-    process.exit(err.status); // forward the binary's own exit code
-  }
+  // Signal termination (SIGINT/SIGSEGV/...) leaves err.status === null and
+  // err.signal set to the signal name: forward it as 128 + signal number, the
+  // shell convention (Ctrl-C -> 130), instead of flattening it to exit 1.
   if (err.signal) {
+    const signalNum = os.constants.signals[err.signal];
+    if (typeof signalNum === 'number') {
+      process.exit(128 + signalNum);
+    }
     process.stderr.write(`tenant-emit: binary terminated by signal ${err.signal}\n`);
     process.exit(1);
+  }
+  if (typeof err.status === 'number') {
+    process.exit(err.status); // forward the binary's own exit code
   }
   process.stderr.write(`tenant-emit: failed to run binary: ${err.message}\n`);
   process.exit(1);

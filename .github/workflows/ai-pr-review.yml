@@ -28,7 +28,14 @@ on:
   # failed or absent review blocks merge; green ci-gate => actually reviewed or
   # visibly skipped). It does NOT trigger standalone on `pull_request` (that
   # would double-run it).
+  #
+  # secrets.CLAUDE_CODE_OAUTH_TOKEN is declared here so the caller (ci.yml) can
+  # forward just this one secret explicitly (least privilege) instead of
+  # `secrets: inherit`, which would leak the whole repo secret set into this job.
   workflow_call:
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
   workflow_dispatch:
 
 permissions:

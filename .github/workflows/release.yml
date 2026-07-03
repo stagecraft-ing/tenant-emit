@@ -34,12 +34,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,    triple: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-24.04-arm, triple: aarch64-unknown-linux-gnu }
+          # glibc_floor: true selects the cargo-zigbuild path below, which
+          # cross-links against glibc 2.17 so the manylinux_2_17 wheel tag
+          # (py/src/tenant_emit/platform_map.py) is honest. A plain `cargo
+          # build` on these runners links against their host glibc (2.39 on
+          # ubuntu-latest at authoring time), which is newer than 2.17 and
+          # would silently break older-glibc hosts despite the tag's promise.
+          - { os: ubuntu-latest,    triple: x86_64-unknown-linux-gnu,  glibc_floor: true }
+          - { os: ubuntu-24.04-arm, triple: aarch64-unknown-linux-gnu, glibc_floor: true }
           # x86_64-apple-darwin cross-compiles on the Apple Silicon runner.
-          - { os: macos-latest,     triple: x86_64-apple-darwin }
-          - { os: macos-latest,     triple: aarch64-apple-darwin }
-          - { os: windows-latest,   triple: x86_64-pc-windows-msvc }
+          - { os: macos-latest,     triple: x86_64-apple-darwin,  glibc_floor: false }
+          - { os: macos-latest,     triple: aarch64-apple-darwin, glibc_floor: false }
+          - { os: windows-latest,   triple: x86_64-pc-windows-msvc, glibc_floor: false }
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -49,8 +55,60 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Add target (no-op if native)
         run: rustup target add ${{ matrix.triple }}
+
+      # --- Linux only: build against a pinned glibc floor -------------------
+      # The zigbuild `.2.17` path cross-links against glibc 2.17 so the
+      # manylinux_2_17 wheel tag (py/src/tenant_emit/platform_map.py) is
+      # honest. The "Assert glibc floor" step below guards it on every release:
+      # a toolchain bump that silently pushed the floor above 2.17 fails the
+      # release rather than publishing a manylinux_2_17 tag that is a lie.
+      #
+      # cargo-zigbuild auto-detects a pip-installed `ziglang` package (it shells
+      # out to `python3 -m ziglang` before falling back to a `zig` binary on
+      # PATH), so no separate Zig download/action is needed here.
+      - name: Install zig + cargo-zigbuild (glibc-floor builds only)
+        if: matrix.glibc_floor
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user ziglang
+          cargo install cargo-zigbuild --locked
+      - name: Build release binary (glibc <= 2.17)
+        if: matrix.glibc_floor
+        run: cargo zigbuild --release --locked --target ${{ matrix.triple }}.2.17 -p tenant-emit-cli
+      # --- Everything else: the toolchain's default (host) glibc / target ---
       - name: Build release binary
+        if: ${{ !matrix.glibc_floor }}
         run: cargo build --release --locked --bin tenant-emit --target ${{ matrix.triple }}
+
+      # The glibc-floor build promises the manylinux_2_17 tag. Assert it by
+      # reading the ELF dynamic symbol table and refusing to publish if any
+      # referenced GLIBC_x.y symbol is newer than the 2.17 floor (which a
+      # toolchain drift could reintroduce). readelf ships with binutils on the
+      # ubuntu runners where the glibc-floor builds run.
+      - name: Assert glibc floor (manylinux_2_17 tag is truthful)
+        if: matrix.glibc_floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          FLOOR="2.17"
+          BIN="target/${{ matrix.triple }}/release/tenant-emit"
+          # Every glibc-versioned symbol the binary imports, stripped to its
+          # numeric version, highest last under version sort.
+          MAX="$(readelf --dyn-syms --wide "$BIN" \
+            | grep -oE 'GLIBC_[0-9]+\.[0-9]+(\.[0-9]+)?' \
+            | sed 's/GLIBC_//' | sort -uV | tail -1)"
+          echo "max referenced glibc symbol: GLIBC_${MAX:-<none>} (floor GLIBC_${FLOOR})"
+          if [ -z "$MAX" ]; then
+            echo "::error::no GLIBC version symbols found in ${BIN}; this binary links glibc dynamically, so an empty scan means the check is broken, not that the floor is safe" >&2
+            exit 1
+          fi
+          # MAX <= FLOOR holds iff the larger of the two, by version sort, is FLOOR.
+          BIGGEST="$(printf '%s\n%s\n' "$MAX" "$FLOOR" | sort -V | tail -1)"
+          if [ "$BIGGEST" != "$FLOOR" ]; then
+            echo "::error::${BIN} references GLIBC_${MAX}, above the manylinux_2_17 floor (GLIBC_${FLOOR}); the wheel glibc tag would be a lie" >&2
+            exit 1
+          fi
+          echo "OK: glibc floor honored, the manylinux_2_17 tag is truthful"
 
       - name: Stage archive contents
         shell: bash
@@ -60,6 +118,17 @@ jobs:
           mkdir -p staging
           cp "target/${{ matrix.triple }}/release/tenant-emit${EXT}" staging/
           cp LICENSE README.md staging/
+          # Defensive validation before GITHUB_REF_NAME (the pushed tag name)
+          # is embedded into a filename and written to $GITHUB_ENV: refuse
+          # anything that does not look like a release tag, rather than
+          # silently building an oddly-named (or crafted) archive from it.
+          case "${GITHUB_REF_NAME}" in
+            v[0-9]*) ;;
+            *)
+              echo "::error::unexpected tag name '${GITHUB_REF_NAME}' (expected to match ^v[0-9]); refusing to stage a release archive" >&2
+              exit 2
+              ;;
+          esac
           echo "ARCHIVE_BASE=tenant-emit-${GITHUB_REF_NAME}-${{ matrix.triple }}" >> "$GITHUB_ENV"
 
       - name: Package (tar.gz + sha256) for Unix
@@ -225,22 +294,36 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           publish_if_absent() {
             local dir="$1" name version
             name="$(node -p "require('./${dir}/package.json').name")"
             version="$(node -p "require('./${dir}/package.json').version")"
             echo "::group::publish ${name}@${version}"
+            # Guarded: npm view exits non-zero for the common "not yet
+            # published" case, so this check must not trip `set -e`.
             if npm view "${name}@${version}" version >/dev/null 2>&1; then
               echo ">> ${name}@${version} already on npm, skipping"
-            else
-              npm publish "${dir}" --access public
-              echo ">> published ${name}@${version}"
+              echo "::endgroup::"
+              return 0
             fi
-            echo "::endgroup::"
+            # Check npm publish's own return code explicitly (mirrors the
+            # publish-crates step's exit-on-failure pattern) rather than
+            # letting a trailing echo reset $? and mask a failed publish.
+            if npm publish "${dir}" --access public; then
+              echo ">> published ${name}@${version}"
+              echo "::endgroup::"
+            else
+              echo ">> publish failed for ${name}@${version}"
+              echo "::endgroup::"
+              return 1
+            fi
           }
           # Platform packages first, then the main package, so there is never a
-          # window where `tenant-emit` is live without its binaries.
+          # window where `tenant-emit` is live without its binaries. A failed
+          # publish_if_absent call is a plain simple command here (not guarded
+          # by if/&&), so `set -e` propagates its failure straight out of the
+          # loop and fails the step; it no longer stays green on a masked error.
           for d in dist/packages/@tenant-emit/*; do
             publish_if_absent "$d"
           done
@@ -251,6 +334,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
+      # Job-level permissions REPLACE the workflow-level default entirely, so
+      # contents: read must be restated here or actions/checkout below has no
+      # repo read scope at all.
+      contents: read
       id-token: write
     environment:
       name: pypi

@@ -11,14 +11,19 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
 concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Only what this job actually uses: contents to check out + build, and
+    # pages (read-only) so configure-pages can query the Pages site metadata.
+    # pages:write and id-token:write (the actual deploy credentials) are scoped
+    # to the deploy job below, not granted workflow-wide.
+    permissions:
+      contents: read
+      pages: read
     defaults:
       run:
         working-directory: website
@@ -38,6 +43,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
