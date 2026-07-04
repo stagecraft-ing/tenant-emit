@@ -832,7 +832,7 @@ dependencies = [
 
 [[package]]
 name = "tenant-emit-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "serde",
@@ -847,7 +847,7 @@ dependencies = [
 
 [[package]]
 name = "tenant-emit-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64",
  "chrono",
@@ -863,7 +863,7 @@ dependencies = [
 
 [[package]]
 name = "tenant-emit-types"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "serde",
