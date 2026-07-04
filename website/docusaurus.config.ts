@@ -35,6 +35,8 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/docs',
+          editUrl:
+            'https://github.com/stagecraft-ing/tenant-emit/tree/main/website/',
         },
         blog: false,
         theme: {
