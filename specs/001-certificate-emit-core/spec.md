@@ -1,7 +1,7 @@
 ---
 id: "001-certificate-emit-core"
 title: "Certificate emit core (builder, signing, run-dir scan, corpus binding)"
-status: draft
+status: approved
 created: "2026-06-22"
 authors: ["tenant-emit"]
 kind: tooling

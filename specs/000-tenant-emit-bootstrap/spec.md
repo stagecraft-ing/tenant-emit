@@ -1,11 +1,11 @@
 ---
 id: "000-tenant-emit-bootstrap"
 title: "tenant-emit bootstrap (emit-only toolkit skeleton)"
-status: draft
+status: approved
 created: "2026-06-22"
 authors: ["tenant-emit"]
 kind: tooling
-implementation: pending
+implementation: complete
 risk: low
 summary: >
   Bootstrap spec for the tenant-emit repository: an emit-only toolkit that

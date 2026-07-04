@@ -94,10 +94,10 @@
       "4. Out of scope"
     ],
     "specPath": "specs/002-distribution/spec.md",
-    "status": "draft",
+    "status": "approved",
     "summary": "How the tenant-emit emitter reaches a produced application: the CLI verb surface (`build-certificate`, with `--tenant-mode`, the signer flags, `--require-operator-key`, the `--corpus-attestation` and `--sbom-dir` read-paths, and the `--require-corpus-binding` / `--require-sbom-binding` guards that exit 2 rather than emit a certificate that lost a binding it was told to carry, all under a fixed exit-code contract), the prebuilt-binary npm shim a TS/JS app pins next to spec-spine and tenant-tail (one exact-version devDependency), and the tag-gated release pipeline that builds the five per-triple archives (with CycloneDX SBOM + .sha256 sidecars + SLSA provenance) and assembles the `@tenant-emit/cli-<os>-<cpu>` platform packages. The shim is a launcher, not a native addon, and mirrors spec-spine's npm/ shape. A parallel PyPI channel (`uvx tenant-emit ...`) ships the same prebuilt binary as five per-platform wheels plus an sdist refusal fallback, from the same release archives (no second Rust build). The read-never-recompute guard (clippy.toml + deny.toml) keeps the corpus read-path honest.\n",
     "title": "Distribution: the build-certificate verb, npm + PyPI binary shims, release pipeline"
   },
-  "shardHash": "22e4768e91b495cf66c08abc5b076fa45524753331155b6fcf19da6fe92a92c0",
+  "shardHash": "b5371db3c11d7af6b708c4b47718122e839b1537be35fd845718692c8df14d0a",
   "specVersion": "1.1.0"
 }
