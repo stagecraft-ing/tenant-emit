@@ -114,6 +114,12 @@ the release pipeline.
   `.sha256` sidecar, a CycloneDX SBOM, and a SLSA build-provenance attestation,
   and publish idempotently to crates.io + npm + PyPI. The PyPI channel reuses the
   same release archives (no second Rust build).
+- The Linux release binaries MUST honor the `manylinux_2_17` glibc floor that the
+  PyPI wheel tags promise: they are cross-linked against glibc 2.17 (via `cargo
+  zigbuild --target <triple>.2.17`) and `release.yml` asserts, from the ELF
+  dynamic symbol table, that no referenced `GLIBC_x.y` symbol exceeds 2.17 before
+  publishing. A toolchain bump that raised the floor fails the release rather
+  than shipping a `manylinux_2_17` wheel tag that is a lie.
 - CI MUST run clippy with `-D warnings` so the read-never-recompute clippy.toml
   ban is enforced as a hard error, and MUST run the spec-spine dogfood gate
   (compile / index check / lint / couple) over this repo's own corpus.
