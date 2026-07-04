@@ -1,7 +1,7 @@
 ---
 id: "002-distribution"
 title: "Distribution: the build-certificate verb, npm + PyPI binary shims, release pipeline"
-status: draft
+status: approved
 created: "2026-06-22"
 authors: ["tenant-emit"]
 kind: tooling

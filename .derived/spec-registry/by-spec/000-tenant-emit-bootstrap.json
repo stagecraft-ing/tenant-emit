@@ -31,7 +31,7 @@
       }
     ],
     "id": "000-tenant-emit-bootstrap",
-    "implementation": "pending",
+    "implementation": "complete",
     "kind": "tooling",
     "references": [
       {
@@ -51,10 +51,10 @@
       "4. Out of scope"
     ],
     "specPath": "specs/000-tenant-emit-bootstrap/spec.md",
-    "status": "draft",
+    "status": "approved",
     "summary": "Bootstrap spec for the tenant-emit repository: an emit-only toolkit that produces a factory's run-side governance certificate (the post-hoc build-certificate path), signed by an attributable tenant signer, with no pipeline orchestration. It is the emit-side counterpart of tenant-tail, which verifies the same paperwork. This spec establishes the workspace skeleton (a three-crate Cargo workspace mirroring spec-spine, plus the npm + PyPI binary-distribution wrappers) and seeds this repo's own spec corpus, governed by the pinned spec-spine library. The emit core and the verb that exposes it are claimed by subsequent specs as the extraction lands; see OAP spec 220-tenant-emit-governance-certificate for the decision to vend and the extraction map.\n",
     "title": "tenant-emit bootstrap (emit-only toolkit skeleton)"
   },
-  "shardHash": "9f0af1fdd360ebafb2cf8a179b1cf0428124219f20c9c7d1aa9888910c721270",
+  "shardHash": "b1f5a9151d81b47c25496ce6235cc9c1b881ac7e228aab63d32a790db2e6e79b",
   "specVersion": "1.1.0"
 }

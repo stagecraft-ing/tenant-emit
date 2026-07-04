@@ -128,8 +128,8 @@
       }
     ],
     "specId": "000-tenant-emit-bootstrap",
-    "specStatus": "draft"
+    "specStatus": "approved"
   },
   "schemaVersion": "1.1.0",
-  "shardHash": "25f22997e3e5648903a4faac067157bdb1c9312fa0f630cc29addee782fa17ba"
+  "shardHash": "e68182abd4da81eed898a81c89f59b1717792776ae405c9b3b3fea927736a893"
 }
