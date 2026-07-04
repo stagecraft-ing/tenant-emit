@@ -23,7 +23,7 @@ The binding is recorded in the `corpusBinding` block of the certificate:
 ```json
 "corpusBinding": {
   "corpusAttestationHash": "...",
-  "specSpineVersion": "0.8.0"
+  "specSpineVersion": "0.10.0"
 }
 ```
 
