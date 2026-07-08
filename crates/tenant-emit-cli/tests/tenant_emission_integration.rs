@@ -443,3 +443,130 @@ fn unreadable_business_doc_exits_2() {
     assert_eq!(code, 2, "an unreadable business doc is a hard error");
     assert!(!run.join("governance-certificate.json").exists());
 }
+
+// ── Spec 210: agentic-posture emit read-path ─────────────────────────────────
+//
+// The emitter reads `agentic_posture` off the frozen Build Spec at
+// `<run-dir>/s5-ui-specification/build-spec.yaml` (read, never recompute) and
+// binds it as `agenticPostureBinding`, inside the cert hash + signature. The
+// emitter records verbatim and never validates well-formedness; the verifier
+// (tenant-tail) is authoritative on consistency + the SBOM cross-check.
+
+/// Write a frozen Build Spec at the run's `s5-ui-specification/build-spec.yaml`.
+fn write_build_spec(run: &Path, yaml: &str) {
+    write(
+        &run.join("s5-ui-specification/build-spec.yaml"),
+        yaml.as_bytes(),
+    );
+}
+
+#[test]
+fn posture_authored_declared_is_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    write_build_spec(
+        &run,
+        "name: sample-app\n\
+         agentic_posture:\n  \
+           posture: declared\n  \
+           surfaces:\n    \
+             - kind: model-api\n      \
+               description: chat completion endpoint\n",
+    );
+    assert_eq!(emit(&run, SIGNER_FLAGS, true), 0);
+
+    let cert = read_cert(&run);
+    let b = cert
+        .agentic_posture_binding
+        .as_ref()
+        .expect("declared posture is bound");
+    assert_eq!(b.posture, "declared");
+    assert!(!b.defaulted, "an authored posture is not defaulted");
+    assert_eq!(b.surfaces.len(), 1);
+    assert_eq!(b.surfaces[0].kind, "model-api");
+    assert_eq!(
+        b.surfaces[0].description.as_deref(),
+        Some("chat completion endpoint")
+    );
+    // The binding is inside the cert hash + signature (the same check
+    // tenant-tail re-derives; tampering the posture breaks it).
+    assert_eq!(cert.certificate_hash, compute_certificate_hash(&cert));
+}
+
+#[test]
+fn posture_omitted_binds_defaulted_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    // A Build Spec that exists but says nothing about agency: "nobody asked".
+    write_build_spec(&run, "name: sample-app\ndisplay_name: Sample App\n");
+    assert_eq!(emit(&run, SIGNER_FLAGS, true), 0);
+
+    let cert = read_cert(&run);
+    let b = cert
+        .agentic_posture_binding
+        .as_ref()
+        .expect("an omitted posture still binds (defaulted)");
+    assert_eq!(b.posture, "none");
+    assert!(
+        b.defaulted,
+        "omitted agentic_posture is visibly defaulted, never silently 'authored none'"
+    );
+    assert!(b.surfaces.is_empty());
+    assert_eq!(cert.certificate_hash, compute_certificate_hash(&cert));
+}
+
+#[test]
+fn posture_unstated_when_no_build_spec() {
+    let dir = tempfile::tempdir().unwrap();
+    // `lay_out_run` writes no s5-ui-specification/build-spec.yaml.
+    let run = lay_out_run(dir.path());
+    assert_eq!(emit(&run, SIGNER_FLAGS, true), 0);
+
+    let cert = read_cert(&run);
+    assert!(
+        cert.agentic_posture_binding.is_none(),
+        "no Build Spec -> posture UNSTATED (no binding), never silently 'none'"
+    );
+    // Byte-identity with a pre-210 certificate: the key is absent from the JSON.
+    let json = std::fs::read_to_string(run.join("governance-certificate.json")).unwrap();
+    assert!(
+        !json.contains("agenticPostureBinding"),
+        "an unbound posture must not serialise the key (pre-210 byte-identity)"
+    );
+}
+
+#[test]
+fn posture_governed_carries_inline_envelope() {
+    let dir = tempfile::tempdir().unwrap();
+    let run = lay_out_run(dir.path());
+    write_build_spec(
+        &run,
+        "agentic_posture:\n  \
+           posture: governed\n  \
+           surfaces:\n    \
+             - kind: tool-surface\n      \
+               description: file tools\n      \
+               governance_envelope:\n        \
+                 schema_version: \"1.0.0\"\n        \
+                 note: inherited-by-standard\n",
+    );
+    assert_eq!(emit(&run, SIGNER_FLAGS, true), 0);
+
+    let cert = read_cert(&run);
+    let b = cert
+        .agentic_posture_binding
+        .as_ref()
+        .expect("governed posture is bound");
+    assert_eq!(b.posture, "governed");
+    assert!(!b.defaulted);
+    let s = &b.surfaces[0];
+    assert_eq!(s.kind, "tool-surface");
+    // The inline envelope is carried verbatim (read, never recompute); the
+    // emitter does not shape-validate it (tenant-tail does).
+    let env = s
+        .governance_envelope
+        .as_ref()
+        .expect("governed surface carries its inline envelope");
+    assert_eq!(env["schema_version"], "1.0.0");
+    assert_eq!(cert.certificate_hash, compute_certificate_hash(&cert));
+}

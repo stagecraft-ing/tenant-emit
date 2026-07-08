@@ -837,6 +837,7 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "serde_yaml",
  "sha2 0.10.9",
  "spec-spine-core",
  "spec-spine-types",

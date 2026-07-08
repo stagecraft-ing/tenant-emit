@@ -28,12 +28,13 @@ pub use certificate::{
 // Emit-surface DTOs, re-exported so the CLI consumes a flat surface (mirroring
 // OAP's `factory_engine::{..}` re-export shape).
 pub use tenant_emit_types::{
-    ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus, ChainIntegrity,
-    ComplianceMapping, ComplianceRecord, ConsumedOverride, CorpusBinding, FactoryPhase,
-    FactoryPipelineState, GateResultRecord, GovernanceCertificate, IntentRecord,
-    InterStageChainRecord, InterStageManifest, ManifestSigner, PlatformCountersign,
-    ProofChainSummary, RunKeyChain, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SandboxExecutionRecord,
-    SandboxResourcePeak, SbomArtifactBinding, Signer, SignerError, SigningAttestation,
-    SigningAttestationKind, StageKeyRecord, StageOutcome, StageRecord, VerificationOutcome,
+    AgenticPosture, AgenticPostureBinding, AgenticSurface, ApprovalRecord, BuildSpecRecord,
+    CERTIFICATE_VERSION, CertAgenticSurface, CertificateStatus, ChainIntegrity, ComplianceMapping,
+    ComplianceRecord, ConsumedOverride, CorpusBinding, FactoryPhase, FactoryPipelineState,
+    GateResultRecord, GovernanceCertificate, IntentRecord, InterStageChainRecord,
+    InterStageManifest, ManifestSigner, PlatformCountersign, PostureLevel, ProofChainSummary,
+    RunKeyChain, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SandboxExecutionRecord, SandboxResourcePeak,
+    SbomArtifactBinding, Signer, SignerError, SigningAttestation, SigningAttestationKind,
+    StageKeyRecord, StageOutcome, StageRecord, SurfaceKind, VerificationOutcome,
     VerificationRecord,
 };

@@ -14,17 +14,20 @@
 //! No crypto, no key handling, no orchestration lives here: this crate is pure
 //! serde data. The engine that hashes and signs these types is `tenant-emit-core`.
 
+pub mod build_spec;
 pub mod certificate;
 pub mod inter_stage_manifest;
 pub mod pipeline_state;
 
+pub use build_spec::{AgenticPosture, AgenticSurface, PostureLevel, SurfaceKind};
 pub use certificate::{
-    ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus, ChainIntegrity,
-    ComplianceMapping, ComplianceRecord, ConsumedOverride, CorpusBinding, GateResultRecord,
-    GovernanceCertificate, IntentRecord, InterStageChainRecord, PlatformCountersign,
-    ProofChainSummary, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SandboxExecutionRecord,
-    SandboxResourcePeak, SbomArtifactBinding, Signer, SignerError, SigningAttestation,
-    SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome, VerificationRecord,
+    AgenticPostureBinding, ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION,
+    CertAgenticSurface, CertificateStatus, ChainIntegrity, ComplianceMapping, ComplianceRecord,
+    ConsumedOverride, CorpusBinding, GateResultRecord, GovernanceCertificate, IntentRecord,
+    InterStageChainRecord, PlatformCountersign, ProofChainSummary, SBOM_AUDIT_RELPATH,
+    SBOM_BOM_RELPATH, SandboxExecutionRecord, SandboxResourcePeak, SbomArtifactBinding, Signer,
+    SignerError, SigningAttestation, SigningAttestationKind, StageOutcome, StageRecord,
+    VerificationOutcome, VerificationRecord,
 };
 pub use inter_stage_manifest::{InterStageManifest, ManifestSigner, RunKeyChain, StageKeyRecord};
 pub use pipeline_state::{FactoryPhase, FactoryPipelineState};

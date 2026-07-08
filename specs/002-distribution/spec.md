@@ -11,9 +11,10 @@ summary: >
   How the tenant-emit emitter reaches a produced application: the CLI verb
   surface (`build-certificate`, with `--tenant-mode`, the signer flags,
   `--require-operator-key`, the `--corpus-attestation` and `--sbom-dir`
-  read-paths, and the `--require-corpus-binding` / `--require-sbom-binding`
-  guards that exit 2 rather than emit a certificate that lost a binding it was
-  told to carry, all under a fixed exit-code contract), the
+  read-paths, the automatic agentic-posture read off the frozen Build Spec
+  (spec 210 FR-002, no flag), and the `--require-corpus-binding` /
+  `--require-sbom-binding` guards that exit 2 rather than emit a certificate that
+  lost a binding it was told to carry, all under a fixed exit-code contract), the
   prebuilt-binary npm shim a TS/JS app pins next to spec-spine and tenant-tail
   (one exact-version devDependency), and the tag-gated release pipeline that
   builds the five per-triple archives (with CycloneDX SBOM + .sha256 sidecars +
@@ -70,7 +71,11 @@ the release pipeline.
   `<root>/.factory/{sbom.cdx.json,audit.json}`, hashes the bytes, and lifts the
   BOM tool version from the BOM's `metadata.tools`; read, never recompute) with
   `--require-sbom-binding` (the symmetric refuse-if-unapplied guard for the SBOM
-  binding), `--out`, and `--adapter`. No verify verb is reachable.
+  binding), `--out`, and `--adapter`. It also reads the produced app's declared
+  agentic posture off the frozen Build Spec at
+  `<run-dir>/s5-ui-specification/build-spec.yaml` (spec 210 FR-002,
+  `resolve_posture_binding`; no flag, like the build-spec-hash lift) and binds it
+  via the engine's `agentic_posture_binding`. No verify verb is reachable.
 - `clippy.toml`, `deny.toml`: the read-never-recompute guard. clippy bans the
   attestation-emit / corpus-recompute symbols (`attest`, `verify_recompute`,
   `attest_json`, `verify_attestation_json`); cargo-deny bans depending on the
@@ -107,6 +112,15 @@ the release pipeline.
   audit pair) AND that a signer is present, so a production emission can never
   silently ship a certificate that dropped a binding it was told to carry behind
   a warning. The two guards mirror `--require-operator-key`.
+- The agentic-posture read-path (spec 210 FR-002) MUST be automatic (no flag)
+  and read, never recompute: when a frozen Build Spec is present at
+  `<run-dir>/s5-ui-specification/build-spec.yaml`, the verb parses its
+  `agentic_posture` block and binds it; a Build Spec that omits the block binds
+  `none`/`defaulted: true` (visibly defaulted); an absent or unparseable Build
+  Spec leaves the posture unstated (no binding, never silently `none`). Like the
+  other bindings it is applied only on the signer path. It has no `--require-*`
+  guard: the posture is a property of the produced app, not an operator input the
+  emission must be forced to carry.
 - The five platform targets (darwin-arm64, darwin-x64, linux-x64, linux-arm64,
   win32-x64) are a single fact kept in lockstep across the npm platform map, the
   py platform map, the generators, and the release matrix.

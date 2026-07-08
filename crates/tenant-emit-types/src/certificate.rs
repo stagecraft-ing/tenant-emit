@@ -64,6 +64,12 @@ use std::collections::BTreeMap;
 /// identically to a pre-binding payload when absent (the named "unbound"
 /// state), so it is not a version bump for the emit/verify pair. See
 /// [`SbomArtifactBinding`].
+///
+/// The additive `agenticPostureBinding` block (spec 210) is carried at this same
+/// version for the same reason: an optional cert field that serialises
+/// identically to a pre-binding payload when absent (the named "unstated"
+/// state), so it is not a version bump for the emit/verify pair. See
+/// [`AgenticPostureBinding`].
 pub const CERTIFICATE_VERSION: &str = "1.5.0";
 
 // ── Top-level Certificate ────────────────────────────────────────────
@@ -148,6 +154,19 @@ pub struct GovernanceCertificate {
     /// never recompute, mirroring `corpus_binding`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sbom_artifact_binding: Option<SbomArtifactBinding>,
+
+    /// Spec 210 FR-002 -- the produced application's declared agentic posture
+    /// (`{ posture, defaulted, surfaces }`), read off the frozen Build Spec at
+    /// emission (read, never recompute). Additive and optional: absence is a
+    /// named "unstated" state (no Build Spec was readable), not a failure. When
+    /// the Build Spec is read but omits `agentic_posture`, the binding is
+    /// present with `defaulted: true`, so an auditor can tell "authored none"
+    /// (someone decided) from "defaulted none" (nobody asked). Inside the hash
+    /// and signature (a normal cert field, unlike `platform_countersign`);
+    /// skipped when absent so unbound certificates serialise byte-identically to
+    /// pre-binding payloads. See [`AgenticPostureBinding`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agentic_posture_binding: Option<AgenticPostureBinding>,
 
     /// SHA-256 of the canonical JSON of this certificate with `certificate_hash`
     /// AND `cert_signature` set to empty string. Content-binding fingerprint
@@ -250,6 +269,84 @@ pub const SBOM_BOM_RELPATH: &str = ".factory/sbom.cdx.json";
 /// Spec 203 FR-003: relative path of the produced app's dependency-audit
 /// artifact, under the produced-app root supplied via `--sbom-dir`.
 pub const SBOM_AUDIT_RELPATH: &str = ".factory/audit.json";
+
+/// Spec 210 FR-002 -- the produced application's declared agentic posture, bound
+/// into the certificate.
+///
+/// Records the posture level (`none | declared | governed`, as the canonical
+/// wire string, version-independent like the SBOM/corpus bindings), whether it
+/// was authored or defaulted (a Build Spec that omits `agentic_posture` resolves
+/// to `none` with `defaulted: true`, so an auditor can tell "authored none" from
+/// "nobody asked"), and the enumerated surfaces. Populated by the emission path
+/// from the frozen Build Spec (read, never recompute). Inside the certificate
+/// hash + signature (bound at emission), so tampering with the binding is caught
+/// by the cert's own signature check when the verifier (tenant-tail) re-derives.
+///
+/// The struct is self-contained (no build-spec dependency in the type itself),
+/// so it deserialises + re-serialises byte-identically to OAP's in-tree
+/// `factory_engine::governance_certificate::AgenticPostureBinding`: the verifier
+/// re-hashes the certificate through this type and must reproduce the emitter's
+/// canonical JSON exactly.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgenticPostureBinding {
+    /// Canonical wire form of the posture level: `none`, `declared`, or
+    /// `governed`.
+    pub posture: String,
+    /// `true` when the Build Spec omitted `agentic_posture` and the posture was
+    /// defaulted to `none`; `false` when the posture was authored.
+    pub defaulted: bool,
+    /// Enumerated agentic surfaces (non-empty for `declared`/`governed`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub surfaces: Vec<CertAgenticSurface>,
+}
+
+/// Spec 210 FR-002 -- one enumerated agentic surface, as bound in the certificate.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CertAgenticSurface {
+    /// Canonical wire form of the surface kind (`model-api`, `tool-surface`,
+    /// `memory-persistence`, `human-approval-point`).
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Inline governance envelope for a `governed` surface (spec 210 FR-004),
+    /// carried verbatim; validated for SHAPE by the verifier (tenant-tail), never
+    /// recomputed here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub governance_envelope: Option<serde_json::Value>,
+}
+
+impl AgenticPostureBinding {
+    /// Build a binding from the Build Spec posture (or its absence). Absent
+    /// (`None`) yields `none`/`defaulted: true`: the Build Spec was read but did
+    /// not declare a posture. Present yields the authored posture with
+    /// `defaulted: false`. The single construction seam the emission path uses
+    /// (read, never recompute); mirrors OAP's
+    /// `factory_engine::governance_certificate::AgenticPostureBinding::from_build_spec`.
+    pub fn from_build_spec(posture: Option<&crate::build_spec::AgenticPosture>) -> Self {
+        match posture {
+            None => AgenticPostureBinding {
+                posture: crate::build_spec::PostureLevel::None.as_str().to_string(),
+                defaulted: true,
+                surfaces: Vec::new(),
+            },
+            Some(p) => AgenticPostureBinding {
+                posture: p.posture.as_str().to_string(),
+                defaulted: false,
+                surfaces: p
+                    .surfaces
+                    .iter()
+                    .map(|s| CertAgenticSurface {
+                        kind: s.kind.as_str().to_string(),
+                        description: s.description.clone(),
+                        governance_envelope: s.governance_envelope.clone(),
+                    })
+                    .collect(),
+            },
+        }
+    }
+}
 
 /// Spec 198 FR-013(c) -- one override of admitted factory content the run
 /// consumed: artifact identity, content hash, author provenance (FR-013 b)
@@ -596,5 +693,78 @@ mod tests {
         assert!(json.contains("\"subject\":\"bart@tenant.example\""));
         assert!(json.contains("\"identityProvider\":\"rauthy@tenant-org\""));
         assert!(json.contains("\"sessionId\":\"sess-42\""));
+    }
+
+    // ── Spec 210: agentic-posture binding ────────────────────────────────
+
+    #[test]
+    fn posture_from_absent_build_spec_is_defaulted_none() {
+        // The Build Spec was read but omitted `agentic_posture`: "nobody asked".
+        let b = AgenticPostureBinding::from_build_spec(None);
+        assert_eq!(b.posture, "none");
+        assert!(b.defaulted);
+        assert!(b.surfaces.is_empty());
+    }
+
+    #[test]
+    fn posture_from_authored_build_spec_maps_surfaces_and_wire_strings() {
+        use crate::build_spec::{AgenticPosture, AgenticSurface, PostureLevel, SurfaceKind};
+        let posture = AgenticPosture {
+            posture: PostureLevel::Governed,
+            surfaces: vec![
+                AgenticSurface {
+                    kind: SurfaceKind::ModelApi,
+                    description: Some("chat".into()),
+                    governance_envelope: None,
+                },
+                AgenticSurface {
+                    kind: SurfaceKind::HumanApprovalPoint,
+                    description: None,
+                    governance_envelope: Some(serde_json::json!({"schemaVersion": "1.0.0"})),
+                },
+            ],
+        };
+        let b = AgenticPostureBinding::from_build_spec(Some(&posture));
+        assert_eq!(b.posture, "governed");
+        assert!(!b.defaulted);
+        assert_eq!(b.surfaces.len(), 2);
+        // Canonical wire strings, version-independent (as_str, not the Rust name).
+        assert_eq!(b.surfaces[0].kind, "model-api");
+        assert_eq!(b.surfaces[1].kind, "human-approval-point");
+        assert!(b.surfaces[1].governance_envelope.is_some());
+    }
+
+    #[test]
+    fn posture_binding_serialises_camel_case() {
+        // Lock the wire form: it MUST match OAP's in-tree AgenticPostureBinding
+        // and tenant-tail's, or the verifier re-hash diverges.
+        let b = AgenticPostureBinding {
+            posture: "governed".into(),
+            defaulted: false,
+            surfaces: vec![CertAgenticSurface {
+                kind: "tool-surface".into(),
+                description: Some("file tools".into()),
+                governance_envelope: Some(serde_json::json!({"schemaVersion": "1.0.0"})),
+            }],
+        };
+        let json = serde_json::to_string(&b).unwrap();
+        assert!(json.contains("\"posture\":\"governed\""));
+        assert!(json.contains("\"defaulted\":false"));
+        assert!(json.contains("\"kind\":\"tool-surface\""));
+        assert!(json.contains("\"governanceEnvelope\":{"));
+    }
+
+    #[test]
+    fn posture_binding_empty_surfaces_skipped_in_serialization() {
+        // A `none` binding serialises without an empty `surfaces` array so a
+        // defaulted-none cert stays compact + byte-stable.
+        let b = AgenticPostureBinding {
+            posture: "none".into(),
+            defaulted: true,
+            surfaces: Vec::new(),
+        };
+        let json = serde_json::to_string(&b).unwrap();
+        assert!(!json.contains("surfaces"), "empty surfaces must be skipped");
+        assert_eq!(json, r#"{"posture":"none","defaulted":true}"#);
     }
 }

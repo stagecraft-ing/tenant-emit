@@ -21,10 +21,11 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use tenant_emit_types::certificate::{
-    ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus, ChainIntegrity,
-    ComplianceRecord, ConsumedOverride, CorpusBinding, GovernanceCertificate, IntentRecord,
-    InterStageChainRecord, ProofChainSummary, SbomArtifactBinding, Signer, SigningAttestation,
-    SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome, VerificationRecord,
+    AgenticPostureBinding, ApprovalRecord, BuildSpecRecord, CERTIFICATE_VERSION, CertificateStatus,
+    ChainIntegrity, ComplianceRecord, ConsumedOverride, CorpusBinding, GovernanceCertificate,
+    IntentRecord, InterStageChainRecord, ProofChainSummary, SbomArtifactBinding, Signer,
+    SigningAttestation, SigningAttestationKind, StageOutcome, StageRecord, VerificationOutcome,
+    VerificationRecord,
 };
 use tenant_emit_types::pipeline_state::FactoryPipelineState;
 
@@ -93,6 +94,7 @@ pub struct CertificateBuilder {
     consumed_overrides: Vec<ConsumedOverride>,
     corpus_binding: Option<CorpusBinding>,
     sbom_artifact_binding: Option<SbomArtifactBinding>,
+    agentic_posture_binding: Option<AgenticPostureBinding>,
 }
 
 impl CertificateBuilder {
@@ -126,6 +128,7 @@ impl CertificateBuilder {
             consumed_overrides: Vec::new(),
             corpus_binding: None,
             sbom_artifact_binding: None,
+            agentic_posture_binding: None,
         }
     }
 
@@ -241,6 +244,19 @@ impl CertificateBuilder {
         self
     }
 
+    /// Spec 210 FR-002: bind the produced app's declared agentic posture (read
+    /// off the frozen Build Spec by the emission path) into the certificate
+    /// (inside hash + signature). The binding is SUPPLIED by the caller via
+    /// [`AgenticPostureBinding::from_build_spec`]; the builder never re-parses
+    /// the Build Spec or re-derives the posture (read, never recompute). An
+    /// omitted `agentic_posture` on the Build Spec still binds
+    /// (`none`/`defaulted: true`) so a defaulted posture is visibly defaulted,
+    /// never silently equivalent to authored `none`.
+    pub fn agentic_posture_binding(mut self, binding: AgenticPostureBinding) -> Self {
+        self.agentic_posture_binding = Some(binding);
+        self
+    }
+
     /// Fallible build path for tenant emission (spec 168 §FR-007).
     ///
     /// Returns [`CertificateBuildError::MissingSigner`] when no
@@ -293,6 +309,7 @@ impl CertificateBuilder {
             consumed_overrides: self.consumed_overrides,
             corpus_binding: self.corpus_binding,
             sbom_artifact_binding: self.sbom_artifact_binding,
+            agentic_posture_binding: self.agentic_posture_binding,
             certificate_hash: String::new(),
             signing_public_key: public_key_b64,
             cert_signature: String::new(),

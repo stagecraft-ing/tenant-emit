@@ -17,6 +17,7 @@ tenant-emit-types.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 sha2.workspace = true
 # Spec 220 FR-007: the corpus read-path. Reads a CorpusAttestation and hashes it
 # via the public reader seam `spec_spine_core::attest::attestation_hash`. The

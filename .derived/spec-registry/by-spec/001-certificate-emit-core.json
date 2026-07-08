@@ -14,6 +14,10 @@
       },
       {
         "kind": "file",
+        "path": "crates/tenant-emit-types/src/build_spec.rs"
+      },
+      {
+        "kind": "file",
         "path": "crates/tenant-emit-types/src/inter_stage_manifest.rs"
       },
       {
@@ -55,9 +59,9 @@
     ],
     "specPath": "specs/001-certificate-emit-core/spec.md",
     "status": "approved",
-    "summary": "The certificate emit engine, extracted from OAP's build_certificate.rs + governance_certificate.rs (the emit path) and kept in behavior parity. It reconstructs a signed governance-certificate.json from a finished `.factory/runs/<run-id>/<stage-id>/<artifacts>` directory: it scans each stage directory, computes SHA-256 over every file, lifts the frozen Build Spec hash, attaches an attributable signer, resolves an Ed25519 signing key (operator env-var or ephemeral fallback), computes the content-binding hash and the Ed25519 signature, and persists the certificate. It optionally binds the tenant's own corpus attestation by hash (read, never recompute). The emitted certificate carries the cert DTOs at `certificate_version` 1.5.0 with the additive corpusBinding field, so it round-trips offline under tenant-tail verify-certificate.\n",
+    "summary": "The certificate emit engine, extracted from OAP's build_certificate.rs + governance_certificate.rs (the emit path) and kept in behavior parity. It reconstructs a signed governance-certificate.json from a finished `.factory/runs/<run-id>/<stage-id>/<artifacts>` directory: it scans each stage directory, computes SHA-256 over every file, lifts the frozen Build Spec hash, attaches an attributable signer, resolves an Ed25519 signing key (operator env-var or ephemeral fallback), computes the content-binding hash and the Ed25519 signature, and persists the certificate. It optionally binds the tenant's own corpus attestation by hash, its SBOM artifacts by content hash, and the produced app's declared agentic posture read off the frozen Build Spec (all read, never recompute). The emitted certificate carries the cert DTOs at `certificate_version` 1.5.0 with the additive corpusBinding, sbomArtifactBinding and agenticPostureBinding fields, so it round-trips offline under tenant-tail verify-certificate.\n",
     "title": "Certificate emit core (builder, signing, run-dir scan, corpus binding)"
   },
-  "shardHash": "c5d218a719c6f83ca259358ea42cdc1bc575b5975295d0f143882a6e572317dd",
+  "shardHash": "463b9a3cad2919ea4fa05a829926739c6ff063e477e07e0300107b07294dd8c9",
   "specVersion": "1.1.0"
 }
