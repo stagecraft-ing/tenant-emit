@@ -43,13 +43,14 @@ use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use tenant_emit_core::{
-    CertificateBuildError, CertificateBuilder, ChainIntegrity, CorpusBinding, FactoryPipelineState,
-    GovernanceCertificate, IntentRecord, OAP_STAGE_IDS, ProofChainSummary, SBOM_AUDIT_RELPATH,
-    SBOM_BOM_RELPATH, SbomArtifactBinding, Signer, SigningAttestationKind, VerificationOutcome,
-    VerificationRecord, generate_certificate_with_stage_ids, persist_certificate_at, sha256_bytes,
-    sha256_file, try_resolve_signing_material, validate_spec_id_resolution,
-    write_validation_warnings,
+    AgenticPostureBinding, CertificateBuildError, CertificateBuilder, ChainIntegrity,
+    CorpusBinding, FactoryPipelineState, GovernanceCertificate, IntentRecord, OAP_STAGE_IDS,
+    ProofChainSummary, SBOM_AUDIT_RELPATH, SBOM_BOM_RELPATH, SbomArtifactBinding, Signer,
+    SigningAttestationKind, VerificationOutcome, VerificationRecord,
+    generate_certificate_with_stage_ids, persist_certificate_at, sha256_bytes, sha256_file,
+    try_resolve_signing_material, validate_spec_id_resolution, write_validation_warnings,
 };
+use tenant_emit_types::build_spec::BuildSpecPostureProjection;
 
 #[derive(Parser)]
 #[command(
@@ -291,6 +292,7 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
 
     let corpus_binding = resolve_corpus_binding(&cli);
     let sbom_binding = resolve_sbom_binding(&cli);
+    let posture_binding = resolve_posture_binding(&cli);
 
     // A binding is only applied on the signer build path, so requiring one also
     // requires a signer. Fail before emitting so a production cert can never
@@ -321,6 +323,7 @@ fn build_certificate_cmd(cli: BuildCertificateArgs) -> ExitCode {
         signer,
         corpus_binding,
         sbom_binding,
+        posture_binding,
     ) {
         Ok(c) => c,
         Err(e) => {
@@ -466,6 +469,42 @@ fn resolve_sbom_binding(cli: &BuildCertificateArgs) -> Option<SbomArtifactBindin
     })
 }
 
+/// Spec 210 FR-002: resolve the agentic-posture binding from the frozen Build
+/// Spec at `<run-dir>/s5-ui-specification/build-spec.yaml` (read, never
+/// recompute). Mirrors OAP's `build_certificate.rs::resolve_posture_binding`.
+/// Returns:
+/// - `None` when no Build Spec is present or it does not parse (the posture is
+///   left UNSTATED on the cert, never silently equivalent to authored `none`).
+/// - `Some(none/defaulted)` when the Build Spec is read but omits
+///   `agentic_posture` ("nobody asked").
+/// - `Some(authored)` when the Build Spec declares a posture.
+///
+/// Bound on the tenant (signer) build path, mirroring `resolve_sbom_binding`:
+/// the posture is a property of the produced application, whose trust artifact
+/// is the tenant certificate. The emitter reads verbatim and never validates
+/// well-formedness; the verifier (tenant-tail) is authoritative on consistency.
+fn resolve_posture_binding(cli: &BuildCertificateArgs) -> Option<AgenticPostureBinding> {
+    let build_spec_path = cli
+        .run_dir
+        .join("s5-ui-specification")
+        .join("build-spec.yaml");
+    let raw = std::fs::read_to_string(&build_spec_path).ok()?;
+    let projection: BuildSpecPostureProjection = match serde_yaml::from_str(&raw) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "warning: Build Spec at {} did not parse for agentic_posture: {e} \
+                 (posture unstated)",
+                build_spec_path.display()
+            );
+            return None;
+        }
+    };
+    Some(AgenticPostureBinding::from_build_spec(
+        projection.agentic_posture.as_ref(),
+    ))
+}
+
 /// Read the BOM generator's version from a CycloneDX BOM's `metadata.tools`,
 /// tolerating both the 1.5+ `tools.components[]` shape and the legacy `tools[]`
 /// array. Prefers a tool whose name contains "cyclonedx"; falls back to the
@@ -526,6 +565,7 @@ fn build_certificate(
     signer: Option<Signer>,
     corpus_binding: Option<CorpusBinding>,
     sbom_binding: Option<SbomArtifactBinding>,
+    posture_binding: Option<AgenticPostureBinding>,
 ) -> Result<GovernanceCertificate, String> {
     if signer.is_none() && corpus_binding.is_some() {
         eprintln!(
@@ -622,6 +662,14 @@ fn build_certificate(
         if let Some(sb) = sbom_binding {
             builder =
                 builder.sbom_artifact_binding(sb.bom_hash, sb.audit_hash, sb.bom_tool_version);
+        }
+        // Spec 210 FR-002: bind the produced app's declared agentic posture,
+        // read off the frozen Build Spec (read, never recompute). Present
+        // whenever a Build Spec was read: an omitted `agentic_posture` binds
+        // `none`/`defaulted: true` (visibly defaulted, never silently equivalent
+        // to authored `none`).
+        if let Some(pb) = posture_binding {
+            builder = builder.agentic_posture_binding(pb);
         }
         let signed = builder
             .build_tenant()

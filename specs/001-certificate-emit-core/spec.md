@@ -16,14 +16,17 @@ summary: >
   attaches an attributable signer, resolves an Ed25519 signing key (operator
   env-var or ephemeral fallback), computes the content-binding hash and the
   Ed25519 signature, and persists the certificate. It optionally binds the
-  tenant's own corpus attestation by hash (read, never recompute). The emitted
-  certificate carries the cert DTOs at `certificate_version` 1.5.0 with the
-  additive corpusBinding field, so it round-trips offline under tenant-tail
+  tenant's own corpus attestation by hash, its SBOM artifacts by content hash,
+  and the produced app's declared agentic posture read off the frozen Build Spec
+  (all read, never recompute). The emitted certificate carries the cert DTOs at
+  `certificate_version` 1.5.0 with the additive corpusBinding, sbomArtifactBinding
+  and agenticPostureBinding fields, so it round-trips offline under tenant-tail
   verify-certificate.
 depends_on:
   - "000-tenant-emit-bootstrap"
 establishes:
   - { kind: file, path: "crates/tenant-emit-types/src/certificate.rs" }
+  - { kind: file, path: "crates/tenant-emit-types/src/build_spec.rs" }
   - { kind: file, path: "crates/tenant-emit-types/src/inter_stage_manifest.rs" }
   - { kind: file, path: "crates/tenant-emit-types/src/pipeline_state.rs" }
   - { kind: file, path: "crates/tenant-emit-types/src/lib.rs" }
@@ -48,11 +51,20 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
 
 - `crates/tenant-emit-types/src/certificate.rs`: the certificate DTOs
   (`GovernanceCertificate` and its sub-records, `Signer`, `CorpusBinding`,
-  `SbomArtifactBinding`, `SigningAttestation(Kind)`), preserved verbatim from OAP
-  so the canonical JSON, the self-hash, and the Ed25519 signature stay
-  byte-identical to what the verifier re-derives. Pinned at `certificate_version`
-  1.5.0 with the additive `corpusBinding` and `sbomArtifactBinding` fields (both
+  `SbomArtifactBinding`, `AgenticPostureBinding` / `CertAgenticSurface`,
+  `SigningAttestation(Kind)`), preserved verbatim from OAP so the canonical JSON,
+  the self-hash, and the Ed25519 signature stay byte-identical to what the
+  verifier re-derives. Pinned at `certificate_version` 1.5.0 with the additive
+  `corpusBinding`, `sbomArtifactBinding` and `agenticPostureBinding` fields (all
   optional, skipped when absent, so unbound certificates stay byte-identical).
+- `crates/tenant-emit-types/src/build_spec.rs`: the minimal parse-side mirror of
+  the produced app's frozen Build Spec, carrying only the `agentic_posture`
+  subtree (`AgenticPosture`, `PostureLevel`, `AgenticSurface`, `SurfaceKind`) plus
+  the `BuildSpecPostureProjection` the CLI deserialises. tenant-emit is Apache-2.0
+  and does not depend on OAP's AGPL `factory-contracts`; this local mirror matches
+  those shapes byte-for-byte (kebab-case wire strings) so a real produced-app
+  Build Spec parses identically. `AgenticPostureBinding::from_build_spec` is the
+  single construction seam.
 - `crates/tenant-emit-types/src/inter_stage_manifest.rs`,
   `crates/tenant-emit-types/src/pipeline_state.rs`: the carrier types the cert
   references (manifest-chain DTOs; the minimal run-state slice the emitter reads).
@@ -89,6 +101,19 @@ needs only a laid-out run directory and a signing key, not a live pipeline.
   it too is applied only on the signer path; the CLI's `--require-sbom-binding`
   guard (spec 002 §3) is the symmetric refusal when a production emission must
   carry it.
+- The agentic-posture binding (spec 210 FR-002) MUST likewise be read, never
+  recomputed: the builder is GIVEN an `AgenticPostureBinding` the CLI resolved
+  from the produced app's declared `agentic_posture` on the frozen Build Spec
+  (via `agentic_posture_binding`), and never re-derives the posture. The binding
+  distinguishes an authored posture (`defaulted: false`) from a Build Spec that
+  omitted `agentic_posture` (`defaulted: true`), so a defaulted `none` is visibly
+  defaulted, never silently equivalent to an authored `none`. The emitter records
+  verbatim and never validates well-formedness; the verifier (tenant-tail) is
+  authoritative on internal consistency, the SBOM cross-check, and the governed
+  envelope shape. Like the other bindings it is additive and optional (a cert
+  whose run had no readable Build Spec carries no binding: the named unstated
+  state) and sits inside the content-binding hash and the signature, so it is
+  applied only on the signer (tenant) build path.
 - A tenant certificate MUST carry no platform countersign (a tenant run is
   outside OAP's admission/grant flow); it is verifiable-but-unsealed and verifies
   offline under tenant-tail verify-certificate.

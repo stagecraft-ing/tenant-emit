@@ -35,6 +35,11 @@ categories = ["development-tools", "command-line-utilities"]
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Spec 210 FR-002: parse the frozen Build Spec's `agentic_posture` block off
+# `s5-ui-specification/build-spec.yaml` (read, never recompute). Already in the
+# lock transitively via spec-spine-core; pinned here to the same 0.9 line OAP's
+# factory-engine uses so a produced-app Build Spec parses identically.
+serde_yaml = "0.9"
 sha2 = "0.10"
 base64 = "0.22"
 ed25519-dalek = "2"
