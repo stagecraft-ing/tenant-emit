@@ -4,8 +4,8 @@
     "name": "tenant-emit",
     "path": "npm",
     "specRef": "002-distribution",
-    "version": "0.2.1"
+    "version": "0.3.0"
   },
   "schemaVersion": "1.1.0",
-  "shardHash": "373d793e33065f15b074ee256bc0c04a29a0796efc3984ba5e300c4cf1472206"
+  "shardHash": "14844b1607d28489798925db1c04c10bcb6e036804744c56e2db377b9ee7056f"
 }
