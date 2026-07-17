@@ -39,9 +39,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/stagecraft-ing/tenant-emit"
-Repository = "https://github.com/stagecraft-ing/tenant-emit"
-Issues = "https://github.com/stagecraft-ing/tenant-emit/issues"
+Homepage = "https://github.com/statecrafting/tenant-emit"
+Repository = "https://github.com/statecrafting/tenant-emit"
+Issues = "https://github.com/statecrafting/tenant-emit/issues"
 
 # Same command name on every host. On a supported host the platform wheel's
 # bundled binary provides `tenant-emit`; on an unsupported host this sdist

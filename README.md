@@ -1,4 +1,4 @@
-# [tenant-emit](https://stagecraft-ing.github.io/tenant-emit) [![CI](https://github.com/stagecraft-ing/tenant-emit/actions/workflows/ci.yml/badge.svg)](https://github.com/stagecraft-ing/tenant-emit/actions/workflows/ci.yml)
+# [tenant-emit](https://statecrafting.github.io/tenant-emit) [![CI](https://github.com/statecrafting/tenant-emit/actions/workflows/ci.yml/badge.svg)](https://github.com/statecrafting/tenant-emit/actions/workflows/ci.yml)
 ![tenant-emit: the vended tenant emission surface](.github/img/tenant-emit-github-banner.jpg)
 
 **The vended tenant emission surface. Spine to tail to emit: spec-spine compiles

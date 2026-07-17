@@ -19,7 +19,7 @@ sidebar_position: 1
 Clone the repository and build the `tenant-emit-cli` package in release mode:
 
 ```bash
-git clone https://github.com/stagecraft-ing/tenant-emit.git
+git clone https://github.com/statecrafting/tenant-emit.git
 cd tenant-emit
 cargo build --release -p tenant-emit-cli
 ```

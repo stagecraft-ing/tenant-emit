@@ -9,9 +9,9 @@ const config: Config = {
   tagline: 'Emit signed governance certificates from a finished run, with no trust required to verify them.',
   favicon: 'img/favicon.ico',
 
-  url: 'https://stagecraft-ing.github.io',
+  url: 'https://statecrafting.github.io',
   baseUrl: '/tenant-emit/',
-  organizationName: 'stagecraft-ing',
+  organizationName: 'statecrafting',
   projectName: 'tenant-emit',
 
   onBrokenLinks: 'throw',
@@ -36,7 +36,7 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           routeBasePath: '/docs',
           editUrl:
-            'https://github.com/stagecraft-ing/tenant-emit/tree/main/website/',
+            'https://github.com/statecrafting/tenant-emit/tree/main/website/',
         },
         blog: false,
         theme: {
@@ -57,7 +57,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/stagecraft-ing/tenant-emit',
+          href: 'https://github.com/statecrafting/tenant-emit',
           label: 'GitHub',
           position: 'right',
         },
@@ -84,11 +84,11 @@ const config: Config = {
           items: [
             {
               label: 'tenant-tail (verifier)',
-              href: 'https://github.com/stagecraft-ing/tenant-tail',
+              href: 'https://github.com/statecrafting/tenant-tail',
             },
             {
               label: 'spec-spine (corpus compiler)',
-              href: 'https://github.com/stagecraft-ing/spec-spine',
+              href: 'https://github.com/statecrafting/spec-spine',
             },
           ],
         },
@@ -97,7 +97,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/stagecraft-ing/tenant-emit',
+              href: 'https://github.com/statecrafting/tenant-emit',
             },
           ],
         },
