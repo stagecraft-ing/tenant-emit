@@ -12,7 +12,7 @@ The architecture of the governance toolkit enforces a strict, load-bearing bound
 
 `tenant-emit` is **emit-only by construction**. It contains no verification logic, no verify verb, and no dependency on the verifier crate. It scans a run directory, computes hashes, signs the payload, and writes the JSON file.
 
-Conversely, [`tenant-tail`](https://github.com/stagecraft-ing/tenant-tail) is verify-only. It reads the certificate, re-derives the canonical JSON, checks the Ed25519 signature, and asserts the integrity of the run. It cannot emit.
+Conversely, [`tenant-tail`](https://github.com/statecrafting/tenant-tail) is verify-only. It reads the certificate, re-derives the canonical JSON, checks the Ed25519 signature, and asserts the integrity of the run. It cannot emit.
 
 This separation ensures that the system producing the audit paperwork is structurally distinct from the system verifying it.
 

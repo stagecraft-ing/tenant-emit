@@ -118,7 +118,7 @@ Notice that the `stageId` array was discovered lexicographically (`s0-preflight`
 
 ## 5. Verify the certificate
 
-The emitted certificate is designed to be verified offline using [`tenant-tail`](https://github.com/stagecraft-ing/tenant-tail).
+The emitted certificate is designed to be verified offline using [`tenant-tail`](https://github.com/statecrafting/tenant-tail).
 
 ```bash
 npx --no-install tenant-tail verify-certificate .factory/runs/run-it-001/governance-certificate.json
